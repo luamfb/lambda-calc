@@ -736,6 +736,33 @@ mod tests {
     }
 
     #[test]
+    fn capture_free_var() {
+        let expr = Expr::Redex(
+            Box::new(Expr::LambdaTerm {
+                var_name: "x".to_string(),
+                body: Box::new(Expr::LambdaTerm {
+                    var_name: "y".to_string(),
+                    body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
+                }),
+            }),
+            Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
+        );
+
+        let expected = Expr::LambdaTerm {
+            var_name: "y".to_string(),
+            body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
+        };
+
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(has_changed);
+        assert_eq!(expected, expr);
+
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(!has_changed);
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
     fn dont_recapture_bound_var() {
         let expr = Expr::LambdaTerm {
             var_name: "x".to_string(),
