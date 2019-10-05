@@ -1218,12 +1218,12 @@ mod tests {
                             var_name: "z".to_string(),
                             body: Box::new(Expr::Redex(
                                 Box::new(Expr::Redex(
-                                    Box::new(Expr::Var { name: "x".to_string(), is_free: true }),
-                                    Box::new(Expr::Var { name: "z".to_string(), is_free: true }),
+                                    Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
+                                    Box::new(Expr::Var { name: "z".to_string(), is_free: false }),
                                 )),
                                 Box::new(Expr::Redex(
-                                    Box::new(Expr::Var { name: "y".to_string(), is_free: true }),
-                                    Box::new(Expr::Var { name: "z".to_string(), is_free: true }),
+                                    Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
+                                    Box::new(Expr::Var { name: "z".to_string(), is_free: false }),
                                 )),
                             )),
                         }),
@@ -1233,7 +1233,7 @@ mod tests {
                     var_name: "a".to_string(),
                     body: Box::new(Expr::LambdaTerm {
                         var_name: "b".to_string(),
-                        body: Box::new(Expr::Var { name: "a".to_string(), is_free: true }),
+                        body: Box::new(Expr::Var { name: "a".to_string(), is_free: false }),
                     }),
                 }),
             )),
@@ -1241,7 +1241,7 @@ mod tests {
                 var_name: "c".to_string(),
                 body: Box::new(Expr::LambdaTerm {
                     var_name: "d".to_string(),
-                    body: Box::new(Expr::Var { name: "c".to_string(), is_free: true }),
+                    body: Box::new(Expr::Var { name: "c".to_string(), is_free: false }),
                 }),
             }),
         ); // (\x y z -> x z (y z)) (\a b -> a) (\c d -> d)     -- OR: S K K
@@ -1288,7 +1288,7 @@ mod tests {
                             body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
                         }),
                     }),
-                    Box::new(Expr::Var{ name: "".to_string(), is_free: false }),
+                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
                 )),
                 Box::new(Expr::Redex(
                     Box::new(Expr::LambdaTerm {
