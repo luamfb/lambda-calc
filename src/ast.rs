@@ -59,7 +59,10 @@ impl Expr {
                     // be replaced by reduction
                     //
                     lambda_body.get_all_lambda_vars(lambda_vars_in_use);
-                    right.alpha_convert(lambda_vars_in_use);
+                    {
+                        let mut conversions = HashMap::new();
+                        right.alpha_convert(lambda_vars_in_use, &mut conversions);
+                    }
                     lambda_vars_in_use.clear();
 
                     lambda_body.replace_bound_var(&right, &var_name);
@@ -113,24 +116,28 @@ impl Expr {
         }
     }
 
-    // FIXME change the names inside the lambdas too!
-    fn alpha_convert(&mut self, lambda_vars_in_use: &mut HashSet<String>) {
+    fn alpha_convert(&mut self, lambda_vars_in_use: &mut HashSet<String>,
+                     conversions: &mut HashMap<String, String>) {
         match self {
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
-                loop {
-                    if !lambda_vars_in_use.contains(name) {
-                        lambda_vars_in_use.insert(name.clone());
-                        lambda_body.alpha_convert(lambda_vars_in_use);
-                        break;
-                    }
-                    name.push('\'');
+                if let Some(new_name) = get_next_avail_name(name, lambda_vars_in_use) {
+                    lambda_vars_in_use.insert(name.clone());
+                    conversions.insert(name.clone(), new_name.clone());
+                    *name = new_name;
                 }
+                lambda_body.alpha_convert(lambda_vars_in_use, conversions);
             },
             Expr::Redex(left, right) => {
-                left.alpha_convert(lambda_vars_in_use);
-                right.alpha_convert(lambda_vars_in_use);
+                left.alpha_convert(lambda_vars_in_use, conversions);
+                right.alpha_convert(lambda_vars_in_use, conversions);
             }
-            _ => {},
+            Expr::Var {name, is_free, } => {
+                if !*is_free {
+                    if let Some(new_name) = conversions.get(name) {
+                        *name = new_name.clone();
+                    }
+                }
+            },
         }
     }
 
@@ -218,6 +225,17 @@ impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.actual_fmt(f, false)
     }
+}
+
+fn get_next_avail_name(name: &str, names_in_use: &HashSet<String>) -> Option<String> {
+    if !names_in_use.contains(name) {
+        return None;
+    }
+    let mut new_name = name.to_string();
+    while names_in_use.contains(&new_name) {
+        new_name.push('\'');
+    }
+    Some(new_name)
 }
 
 #[cfg(test)]
