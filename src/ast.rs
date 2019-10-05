@@ -805,7 +805,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha_convert2() {
+    fn alpha_conversion2() {
         let expr = Expr::Redex(
             Box::new(Expr::LambdaTerm {
                 var_name: "x".to_string(),
@@ -826,7 +826,10 @@ mod tests {
             var_name: "y".to_string(),
             body: Box::new(Expr::LambdaTerm {
                 var_name: "y'".to_string(),
-                body: Box::new(Expr::Var{ name: "y''".to_string(), is_free: true }),
+                body: Box::new(Expr::LambdaTerm {
+                    var_name: "y''".to_string(),
+                    body: Box::new(Expr::Var { name: "y''".to_string(), is_free: false }),
+                }),
             }),
         };
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
