@@ -63,9 +63,10 @@ impl Expr {
                         let mut conversions = HashMap::new();
                         right.alpha_convert(lambda_vars_in_use, &mut conversions);
                     }
+                    lambda_body.replace_bound_var(&right, &var_name, lambda_vars_in_use);
+
                     lambda_vars_in_use.clear();
 
-                    lambda_body.replace_bound_var(&right, &var_name);
                     let new_expr = *lambda_body;
                     (new_expr, true)
                 } else {
@@ -141,21 +142,34 @@ impl Expr {
         }
     }
 
-    fn replace_bound_var(&mut self, arg: &Expr, var_name: &str) {
+    fn replace_bound_var(&mut self,
+                         arg: &Expr,
+                         var_name: &str,
+                         lambda_vars: &mut HashSet<String>) {
         match self {
             Expr::Redex(left, right) => {
-                left.replace_bound_var(arg, var_name);
-                right.replace_bound_var(arg, var_name);
+                left.replace_bound_var(arg, var_name, lambda_vars);
+                right.replace_bound_var(arg, var_name, lambda_vars);
             },
             Expr::LambdaTerm { var_name: _, body: lambda_body } => {
-                lambda_body.replace_bound_var(arg, var_name);
+                lambda_body.replace_bound_var(arg, var_name, lambda_vars);
             },
             Expr::Var{ name, is_free } => {
                 if !*is_free && var_name == name {
-                    *self = arg.clone();
+                    let mut arg_captured = arg.clone();
+                    arg_captured.capture_free_vars(lambda_vars);
+                    *self = arg_captured;
                 }
             },
         };
+    }
+
+    fn capture_free_vars(&mut self, lambda_vars: &HashSet<String>) {
+        if let Expr::Var{ name, is_free } = self {
+            if *is_free && lambda_vars.contains(name) {
+                *is_free = false;
+            }
+        }
     }
 
     pub fn substitute_symbols_from(&mut self, symbol_table: &HashMap<String, Expr>) {
