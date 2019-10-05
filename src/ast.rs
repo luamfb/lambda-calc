@@ -787,6 +787,40 @@ mod tests {
     }
 
     #[test]
+    fn alpha_convert2() {
+        let expr = Expr::Redex(
+            Box::new(Expr::LambdaTerm {
+                var_name: "x".to_string(),
+                body: Box::new(Expr::LambdaTerm {
+                    var_name: "y".to_string(),
+                    body: Box::new(Expr::LambdaTerm {
+                        var_name: "y'".to_string(),
+                        body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false })
+                    }),
+                }),
+            }),
+            Box::new(Expr::LambdaTerm {
+                var_name: "y".to_string(),
+                body: Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
+            }),
+        );
+        let expected = Expr::LambdaTerm {
+            var_name: "y".to_string(),
+            body: Box::new(Expr::LambdaTerm {
+                var_name: "y'".to_string(),
+                body: Box::new(Expr::Var{ name: "y''".to_string(), is_free: true }),
+            }),
+        };
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(has_changed);
+        assert_eq!(expected, expr);
+
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(!has_changed);
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
     fn several_stages() {
         let expr = Expr::Redex(
             Box::new(Expr::Redex(
@@ -953,6 +987,86 @@ mod tests {
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected5, expr);
+    }
+
+    #[test]
+    fn several_stages_alpha_conversion() {
+        let expr = Expr::Redex(
+            Box::new(Expr::Redex(
+                Box::new(Expr::LambdaTerm {
+                    var_name: "x".to_string(),
+                    body: Box::new(Expr::LambdaTerm {
+                        var_name: "y".to_string(),
+                        body: Box::new(Expr::LambdaTerm {
+                            var_name: "z".to_string(),
+                            body: Box::new(Expr::Redex(
+                                Box::new(Expr::Var {name: "x".to_string(), is_free: false }),
+                                Box::new(Expr::Redex(
+                                    Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
+                                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+                                )),
+                            )),
+                        }),
+                    }),
+                }),
+                Box::new(Expr::LambdaTerm {
+                    var_name: "z".to_string(),
+                    body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+                }),
+            )),
+            Box::new(Expr::LambdaTerm {
+                var_name: "z".to_string(),
+                body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+            }),
+        ); // (\x y z -> x y z) (\z -> z) (\z -> z)
+
+        let expected1 = Expr::Redex(
+            Box::new(Expr::LambdaTerm {
+                var_name: "y".to_string(),
+                body: Box::new(Expr::LambdaTerm {
+                    var_name: "z".to_string(),
+                    body: Box::new(Expr::Redex(
+                        Box::new(Expr::LambdaTerm {
+                            var_name: "z'".to_string(),
+                            body: Box::new(Expr::Var{ name: "z'".to_string(), is_free: false }),
+                        }),
+                        Box::new(Expr::Redex(
+                            Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
+                            Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+                        )),
+                    )),
+                }),
+            }),
+            Box::new(Expr::LambdaTerm {
+                var_name: "z".to_string(),
+                body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+            }),
+        ); // (\y z -> (\z' -> z') y z) (\z -> z)
+
+        let expected2 = Expr::LambdaTerm {
+            var_name: "z".to_string(),
+            body: Box::new(Expr::Redex(
+                Box::new(Expr::LambdaTerm {
+                    var_name: "z'".to_string(),
+                    body: Box::new(Expr::Var{ name: "z'".to_string(), is_free: false }),
+                }),
+                Box::new(Expr::Redex(
+                    Box::new(Expr::LambdaTerm {
+                        var_name: "z''".to_string(),
+                        body: Box::new(Expr::Var{ name: "z''".to_string(), is_free: false }),
+                    }),
+                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
+                )),
+            )),
+        }; // \z -> (\z' -> z') (\z'' -> z'') z
+
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(has_changed);
+        assert_eq!(expected1, expr);
+
+        let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
+        assert!(has_changed);
+        assert_eq!(expected2, expr);
     }
 
     #[test]
