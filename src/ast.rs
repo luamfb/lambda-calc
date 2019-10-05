@@ -165,10 +165,19 @@ impl Expr {
     }
 
     fn capture_free_vars(&mut self, lambda_vars: &HashSet<String>) {
-        if let Expr::Var{ name, is_free } = self {
-            if *is_free && lambda_vars.contains(name) {
-                *is_free = false;
-            }
+        match self {
+            Expr::Var{ name, is_free } => {
+                if *is_free && lambda_vars.contains(name) {
+                    *is_free = false;
+                }
+            },
+            Expr::LambdaTerm { var_name: _, body: lambda_body } => {
+                lambda_body.capture_free_vars(lambda_vars);
+            },
+            Expr::Redex(right, left) => {
+                right.capture_free_vars(lambda_vars);
+                left.capture_free_vars(lambda_vars);
+            },
         }
     }
 
