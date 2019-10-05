@@ -144,7 +144,7 @@ impl Expr {
                 lambda_body.replace_bound_var(arg, var_name);
             },
             Expr::Var{ name, is_free } => {
-                if *is_free && var_name == name {
+                if !*is_free && var_name == name {
                     *self = arg.clone();
                 }
             },
