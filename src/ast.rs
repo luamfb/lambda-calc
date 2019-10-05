@@ -233,6 +233,7 @@ impl Expr {
                     Expr::LambdaTerm {var_name: _, body: _} => {},
                     _ => write!(f, ". ")?,
                 }
+                lambda_body.actual_fmt(f, true)?;
 
                 if paren_needed {
                     write!(f, ")")?;
