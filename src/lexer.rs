@@ -14,6 +14,7 @@ pub enum Token<'a> {
 pub enum Command {
     Help,
     Load,
+    Define, // :=, pseudo-command
 }
 
 #[derive(Clone)]
@@ -40,7 +41,13 @@ impl<'a> Iterator for TokenIter<'a> {
             if first_char == ':' {
                 self.pos += 1; // skip ':'
                 return match self.get_command() {
-                    Some(cmd) => Some(Token::Command(cmd)),
+                    Some(cmd) => {
+                        if let Command::Define = cmd {
+                            Some(Token::Def)
+                        } else {
+                            Some(Token::Command(cmd))
+                        }
+                    },
                     None => Some(Token::Invalid),
                 };
             }
@@ -51,7 +58,7 @@ impl<'a> Iterator for TokenIter<'a> {
         //
         let classifier = &[
             (vec!["=>", "->", "."],     Token::Gives),
-            (vec!["=", ":="],           Token::Def),
+            (vec!["="],                 Token::Def),
             (vec!["λ", "\\", "lambda"], Token::Lambda),
             (vec!["("],                 Token::OpenParen),
             (vec![")"],                 Token::CloseParen),
@@ -118,6 +125,11 @@ impl<'a> TokenIter<'a> {
 
     fn get_command(&mut self) -> Option<Command> {
         let rest_of_string = self.rest_of_string();
+        if rest_of_string.chars().next().unwrap() == '=' {
+            self.pos += 1;
+            return Some(Command::Define); // ":="
+        }
+
         let classifier = &[
             CommandClassifier {short_name: "h", long_name: "help", cmd: Command::Help},
             CommandClassifier {short_name: "l", long_name: "load", cmd: Command::Load},
@@ -174,6 +186,22 @@ mod tests {
         let s = "lambda";
         let mut iter = TokenIter::new(s);
         assert_eq!(iter.next(), Some(Token::Lambda));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn single_token_command() {
+        let s = ":load";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Command(Command::Load)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn single_token_pseudo_command() {
+        let s = ":=";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Def));
         assert_eq!(iter.next(), None);
     }
 
