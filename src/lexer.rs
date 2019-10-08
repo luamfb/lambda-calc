@@ -7,12 +7,25 @@ pub enum Token<'a> {
     Lambda,
     OpenParen,
     CloseParen,
+    Command(Command),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Command {
+    Help,
+    Load,
 }
 
 #[derive(Clone)]
 pub struct TokenIter<'a> {
     s: &'a str,
     pos: usize,
+}
+
+struct CommandClassifier<'a> {
+    short_name: &'a str,
+    long_name: &'a str,
+    cmd: Command,
 }
 
 impl<'a> Iterator for TokenIter<'a> {
@@ -22,8 +35,15 @@ impl<'a> Iterator for TokenIter<'a> {
         self.consume_whitespace();
 
         let rest_of_string = self.rest_of_string();
-        if rest_of_string.is_empty() {
-            return None;
+        {
+            let first_char = rest_of_string.chars().next()?;
+            if first_char == ':' {
+                self.pos += 1; // skip ':'
+                return match self.get_command() {
+                    Some(cmd) => Some(Token::Command(cmd)),
+                    None => Some(Token::Invalid),
+                };
+            }
         }
 
         // The order matters in those lists: if one token is prefix of another,
@@ -94,6 +114,23 @@ impl<'a> TokenIter<'a> {
             self.pos += name_len;
             Token::Id(&rest_of_string[0..name_len])
         }
+    }
+
+    fn get_command(&mut self) -> Option<Command> {
+        let rest_of_string = self.rest_of_string();
+        let classifier = &[
+            CommandClassifier {short_name: "h", long_name: "help", cmd: Command::Help},
+            CommandClassifier {short_name: "l", long_name: "load", cmd: Command::Load},
+        ];
+        let (name_len, _) = self.get_next_word_and_last_char_len();
+        let name = &rest_of_string[0..name_len];
+        for class in classifier {
+            if name == class.short_name || name == class.long_name {
+                self.pos += name.len();
+                return Some(class.cmd);
+            }
+        }
+        None
     }
 
     fn get_next_word_and_last_char_len(&self) -> (usize, usize) {
