@@ -77,23 +77,11 @@ impl<'a> TokenIter<'a> {
 
     fn handle_var_or_invalid(&mut self) -> Token<'a> {
         let rest_of_string = self.rest_of_string();
-        let mut name_len = 0;
-        let mut last_char_len = 0; // store this to use in the invalid case
-
-        for c in rest_of_string.chars() {
-            last_char_len = c.len_utf8();
-            if !c.is_alphanumeric() && c != '_' {
-                break
-            }
-            name_len += last_char_len;
-        }
-
-        // this will only happen if rest_of_string is empty, which should have
-        // been handled before calling this function. If it hasn't, panic!
-        //
-        if last_char_len == 0 {
+        if rest_of_string.is_empty() {
             panic!("TokenIter.next(): rest_of_string is empty");
         }
+
+        let (name_len, last_char_len) = self.get_next_word_and_last_char_len();
 
         if name_len == 0 {
             // we must increment position here too, otherwise we'll yield
@@ -106,6 +94,21 @@ impl<'a> TokenIter<'a> {
             self.pos += name_len;
             Token::Id(&rest_of_string[0..name_len])
         }
+    }
+
+    fn get_next_word_and_last_char_len(&self) -> (usize, usize) {
+        let rest_of_string = self.rest_of_string();
+        let mut name_len = 0;
+        let mut last_char_len = 0;
+
+        for c in rest_of_string.chars() {
+            last_char_len = c.len_utf8();
+            if !c.is_alphanumeric() && c != '_' {
+                break
+            }
+            name_len += last_char_len;
+        }
+        (name_len, last_char_len)
     }
 }
 
