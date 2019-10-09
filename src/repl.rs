@@ -12,9 +12,7 @@ use crate::parser::Parser;
 
 #[derive(Helper)]
 struct RustylineHelper {
-    // we have this completer because I intend to make a :load command for
-    // sourcing files at the interactive prompt. (TODO)
-    completer: FilenameCompleter,
+    completer: FilenameCompleter, // for :load
     highlighter: MatchingBracketHighlighter,
 }
 
