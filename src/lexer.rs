@@ -21,12 +21,14 @@ pub enum Command {
 pub struct TokenIter<'a> {
     s: &'a str,
     pos: usize,
+    cmd_arg_expected: bool,
 }
 
 struct CommandClassifier<'a> {
     short_name: &'a str,
     long_name: &'a str,
     cmd: Command,
+    arg_expected: bool,
 }
 
 impl<'a> Iterator for TokenIter<'a> {
@@ -36,6 +38,19 @@ impl<'a> Iterator for TokenIter<'a> {
         self.consume_whitespace();
 
         let rest_of_string = self.rest_of_string();
+        if rest_of_string.is_empty() {
+            return None;
+        }
+        if self.cmd_arg_expected {
+            self.cmd_arg_expected = false;
+            self.pos += rest_of_string.len();
+            let cmd_arg = rest_of_string.trim();
+            if cmd_arg.is_empty() {
+                return None;
+            }
+            return Some(Token::Id(cmd_arg));
+        }
+
         {
             let first_char = rest_of_string.chars().next()?;
             if first_char == ':' {
@@ -85,6 +100,7 @@ impl<'a> TokenIter<'a> {
         TokenIter {
             s,
             pos: 0,
+            cmd_arg_expected: false,
         }
     }
 
@@ -131,14 +147,25 @@ impl<'a> TokenIter<'a> {
         }
 
         let classifier = &[
-            CommandClassifier {short_name: "h", long_name: "help", cmd: Command::Help},
-            CommandClassifier {short_name: "l", long_name: "load", cmd: Command::Load},
+            CommandClassifier {
+                short_name: "h",
+                long_name: "help",
+                cmd: Command::Help,
+                arg_expected: false,
+            },
+            CommandClassifier {
+                short_name: "l",
+                long_name: "load",
+                cmd: Command::Load,
+                arg_expected: true,
+            },
         ];
         let (name_len, _) = self.get_next_word_and_last_char_len();
         let name = &rest_of_string[0..name_len];
         for class in classifier {
             if name == class.short_name || name == class.long_name {
                 self.pos += name.len();
+                self.cmd_arg_expected = class.arg_expected;
                 return Some(class.cmd);
             }
         }
@@ -202,6 +229,24 @@ mod tests {
         let s = ":=";
         let mut iter = TokenIter::new(s);
         assert_eq!(iter.next(), Some(Token::Def));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn command_arg_single_word() {
+        let s = ":load foo";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Command(Command::Load)));
+        assert_eq!(iter.next(), Some(Token::Id("foo")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn command_arg_multi_word() {
+        let s = ":load foo bar baz";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Command(Command::Load)));
+        assert_eq!(iter.next(), Some(Token::Id("foo bar baz")));
         assert_eq!(iter.next(), None);
     }
 
