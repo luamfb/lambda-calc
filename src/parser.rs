@@ -1,6 +1,8 @@
-use crate::lexer::{Token, TokenIter};
+use crate::lexer::{Token, TokenIter, Command};
 use crate::ast::Expr;
 use std::collections::{HashSet, HashMap};
+use std::io::{BufRead, BufReader};
+use std::fs::File;
 
 /// Our hand-written parser.
 /// Use with parse().
@@ -53,7 +55,44 @@ impl Parser {
     ///
     pub fn parse(&mut self, line: &str) -> Option<Expr> {
         let token_iter = TokenIter::new(&line);
+        {
+            let mut new_token_iter = token_iter.clone();
+            if let Some(Token::Command(cmd)) = new_token_iter.next() {
+                self.run_command(cmd, new_token_iter.next());
+                return None;
+            }
+        }
         LineParser::new(token_iter).parse(&mut self.symbol_table)
+    }
+
+    /// Parse all lines contained by filename.
+    pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
+        let reader = BufReader::new(File::open(filename)?);
+        for line in reader.lines() {
+            self.parse(&line?);
+        }
+        Ok(())
+    }
+
+    fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
+        match cmd {
+            Command::Help => {
+                // TODO print usage
+            },
+            Command::Load => match arg {
+                None => {
+                    eprintln!("':load' requires a filename");
+                    return;
+                },
+                Some(Token::Id(filename)) => {
+                    if let Err(err) = self.parse_file(filename) {
+                        eprintln!("error parsing file {}: '{}'", filename, err);
+                    }
+                },
+                _ => panic!("lexer should have returned an Id as the argument to ':load'"),
+            },
+            Command::Define => panic!("Command::Define should never be returned by the lexer!"),
+        }
     }
 }
 
