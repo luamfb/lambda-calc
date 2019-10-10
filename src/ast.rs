@@ -266,9 +266,47 @@ fn get_next_avail_name(name: &str, names_in_use: &HashSet<String>) -> Option<Str
 mod tests {
     use super::*;
 
+    // wrappers to reduce boilerplate.
+    fn free_var_no_box(name: &str) -> Expr {
+        Expr::Var {
+            name: name.to_string(),
+            is_free: true,
+        }
+    }
+    fn bound_var_no_box(name: &str) -> Expr {
+        Expr::Var {
+            name: name.to_string(),
+            is_free: false,
+        }
+    }
+    fn lambda_no_box(var_name: &str, body: Box<Expr>) -> Expr {
+        Expr::LambdaTerm {
+            var_name: var_name.to_string(),
+            body,
+        }
+    }
+    fn redex_no_box(left: Box<Expr>, right: Box<Expr>) -> Expr {
+        Expr::Redex(
+            left,
+            right,
+        )
+    }
+    fn free_var(name: &str) -> Box<Expr> {
+        Box::new(free_var_no_box(name))
+    }
+    fn bound_var(name: &str) -> Box<Expr> {
+        Box::new(bound_var_no_box(name))
+    }
+    fn lambda(var_name: &str, body: Box<Expr>) -> Box<Expr> {
+        Box::new(lambda_no_box(var_name, body))
+    }
+    fn redex(left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
+        Box::new(redex_no_box(left, right))
+    }
+
     #[test]
     fn not_redex1() {
-        let expr = Expr::Var{ name: "a".to_string(), is_free: true };
+        let expr = free_var_no_box("a");
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -278,10 +316,7 @@ mod tests {
 
     #[test]
     fn not_redex2() {
-        let expr = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-        };
+        let expr = lambda_no_box("x", bound_var("x"));
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -291,16 +326,10 @@ mod tests {
 
     #[test]
     fn not_redex3() {
-        let expr = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Var{name: "x".to_string(), is_free: false }),
-                    Box::new(Expr::Var{name: "y".to_string(), is_free: false }),
-                )),
-            }),
-        }; // lambda x . lambda y . x y
+        let expr = lambda_no_box(
+            "x",
+            lambda("y", redex(bound_var("x"), bound_var("x")))
+        );
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -310,10 +339,7 @@ mod tests {
 
     #[test]
     fn fake_redex1() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-            Box::new(Expr::Var{ name: "b".to_string(), is_free: true })
-        ); // a b
+        let expr = redex_no_box(free_var("a"), free_var("b"));
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -323,13 +349,10 @@ mod tests {
 
     #[test]
     fn fake_redex2() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-            )),
-            Box::new(Expr::Var { name: "c".to_string(), is_free: true }),
-        ); // (a b) c
+        let expr = redex_no_box(
+            redex(free_var("a"), free_var("b")),
+            free_var("c")
+        );
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -339,13 +362,10 @@ mod tests {
 
     #[test]
     fn fake_redex3() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "c".to_string(), is_free: true }),
-            )),
-        ); // a (b c)
+        let expr = redex_no_box(
+            free_var("a"),
+            redex(free_var("b"), free_var("c")),
+        );
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -355,14 +375,11 @@ mod tests {
 
     #[test]
     fn single_bound_var() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-            }),
-            Box::new(Expr::Var {name: "a".to_string(), is_free: true }),
-        ); // (lambda x . x) a
-        let expected = Expr::Var{ name: "a".to_string(), is_free: true };
+        let expr = redex_no_box(
+            lambda("x", bound_var("x")),
+            free_var("a")
+        );
+        let expected = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -374,26 +391,15 @@ mod tests {
 
     #[test]
     fn multiple_bound_vars() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body:
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Redex(
-                            Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                            Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                        )),
-                        Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                    )),
-            }),
-            Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-        ); // (lambda x . x x x) a
-        let expected = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-            )),
-            Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
+        let expr = redex_no_box(
+            lambda("x", redex(
+                    redex(bound_var("x"), bound_var("x")),
+                    bound_var("x")
+            )), free_var("a")
+        );
+        let expected = redex_no_box(
+            redex(free_var("a"), free_var("a")),
+            free_var("a")
         );
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -407,25 +413,15 @@ mod tests {
 
     #[test]
     fn one_bound_some_free_vars() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Var{name: "a".to_string(), is_free: true}),
-                        Box::new(Expr::Var{name: "x".to_string(), is_free: false}),
-                    )),
-                    Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-                )),
-            }),
-            Box::new(Expr::Var{ name: "c".to_string(), is_free:true }),
-        ); // (lambda x . a x b) c
-        let expected = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "c".to_string(), is_free: true }),
-            )),
-            Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
+        let expr = redex_no_box(
+            lambda("x", redex(
+                    redex(free_var("a"), bound_var("x")),
+                    free_var("b")
+            )), free_var("c")
+        );
+        let expected = redex_no_box(
+            redex(free_var("a"), free_var("c")),
+            free_var("b")
         );
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -439,20 +435,11 @@ mod tests {
 
     #[test]
     fn two_lambdas_redex() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
-        ); // (lambda x . x) (lambda y . y)
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-        };
+        let expr = redex_no_box(
+            lambda("x", bound_var("x")),
+            lambda("y", bound_var("y")),
+        );
+        let expected = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -464,14 +451,11 @@ mod tests {
 
     #[test]
     fn constant_lambda() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-            }),
-            Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-        ); // (lambda x . a) b
-        let expected = Expr::Var{ name: "a".to_string(), is_free: true };
+        let expr = redex_no_box(
+            lambda("x", free_var("a")),
+            free_var("b"),
+        );
+        let expected = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -484,27 +468,11 @@ mod tests {
 
     #[test]
     fn nested_lambdas() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                        Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                    )),
-                }),
-            }),
-            Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-        ); // (lambda x . lambda y . x y) a
-
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            )),
-        };
+        let expr = redex_no_box(
+            lambda("x", lambda("y", redex(bound_var("x"), bound_var("y")))),
+            free_var("a"),
+        );
+        let expected = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -516,76 +484,39 @@ mod tests {
 
     #[test]
     fn nested_lambdas_multilevel_subst() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                        Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                    )),
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "y".to_string(),
-                        body: Box::new(Expr::Redex(
-                            Box::new(Expr::Redex(
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                                    Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
-                                )),
-                                Box::new(Expr::Var { name: "a".to_string(), is_free: true }),
-                            )),
-                            Box::new(Expr::LambdaTerm {
-                                var_name: "z".to_string(),
-                                body: Box::new(Expr::Redex(
-                                    Box::new(Expr::Redex(
-                                        Box::new(Expr::Redex(
-                                            Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                                            Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
-                                        )),
-                                        Box::new(Expr::Var { name: "z".to_string(), is_free: false }),
-                                    )),
-                                    Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                                )),
-                            }),
-                        )),
-                    }),
-                )),
-            }),
-            Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-        ); // (lambda x . x a (lambda y . x y a (lambda z . x y z a))) b
-
-        let expected = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
+        // (lambda x . x a (lambda y . x y a (lambda z . x y z a))) b
+        let expr = redex_no_box(
+            lambda("x", redex(
+                    redex(bound_var("x"), free_var("a")),
+                    lambda("y", redex(
+                            redex(
+                                redex(bound_var("x"), bound_var("y")),
+                                free_var("a")
+                            ),
+                            lambda("z", redex(
+                                       redex(
+                                           redex(bound_var("x"), bound_var("y")),
+                                           bound_var("z")
+                                        ),
+                                        free_var("a"),
+                            ))
+                    ))
             )),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Redex(
-                            Box::new(Expr::Var{ name: "b".to_string(), is_free: true }),
-                            Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                        )),
-                        Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                    )),
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "z".to_string(),
-                        body: Box::new(Expr::Redex(
-                            Box::new(Expr::Redex(
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var{name: "b".to_string(), is_free: true}),
-                                    Box::new(Expr::Var{name: "y".to_string(), is_free: false}),
-                                )),
-                                Box::new(Expr::Var{name: "z".to_string(), is_free: false}),
-                            )),
-                            Box::new(Expr::Var{name: "a".to_string(), is_free: true}),
-                        )),
-                    }),
-                )),
-            }),
+            free_var("b"),
         );
-
+        let expected = redex_no_box(
+            redex(free_var("b"), free_var("a")),
+            lambda("y", redex(
+                    redex(redex(free_var("b"), bound_var("y")), free_var("a")),
+                    lambda("z", redex(
+                               redex(
+                                   redex(free_var("b"), bound_var("y")),
+                                   bound_var("z"),
+                               ),
+                               free_var("a"),
+                    )),
+            )),
+        );
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
@@ -596,22 +527,10 @@ mod tests {
 
     #[test]
     fn reduces_to_itself() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                )),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                )),
-            }),
-        ); // (lambda x . x x) (lambda x . x x)
+        let expr = redex_no_box(
+            lambda("x", redex(bound_var("x"), bound_var("x"))),
+            lambda("x", redex(bound_var("x"), bound_var("x"))),
+        );
         let expected = expr.clone();
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
@@ -621,27 +540,15 @@ mod tests {
 
     #[test]
     fn two_stage_normal_order() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-            }),
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                }),
-                Box::new(Expr::Var{name: "a".to_string(), is_free: true}),
-            )),
-        ); // (lambda x . x) ((lambda y . y) a)
-        let expected1 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
-            Box::new(Expr::Var{name: "a".to_string(), is_free: true}),
+        let expr = redex_no_box(
+            lambda("x", bound_var("x")),
+            redex(lambda("y", bound_var("y")), free_var("a"))
         );
-        let expected2 = Expr::Var{name: "a".to_string(), is_free: true};
+        let expected1 = redex_no_box(
+            lambda("y", bound_var("y")),
+            free_var("a")
+        );
+        let expected2 = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -658,33 +565,15 @@ mod tests {
 
     #[test]
     fn two_stage_produced_redex() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                )),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
-        ); // (lambda x . x x) (lambda y . y)
-        let expected1 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body:Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body:Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
+        let expr = redex_no_box(
+            lambda("x", redex(bound_var("x"), bound_var("x"))),
+            lambda("y", bound_var("y")),
         );
-        let expected2 = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-        };
+        let expected1 = redex_no_box(
+            lambda("y", bound_var("y")),
+            lambda("y", bound_var("y")),
+        );
+        let expected2 = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -701,29 +590,14 @@ mod tests {
 
     #[test]
     fn mandatory_normal_order() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Var{name: "a".to_string(), is_free: true}),
-            }),
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "x".to_string(),
-                    body: Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                    )),
-                }),
-                Box::new(Expr::LambdaTerm {
-                    var_name: "x".to_string(),
-                    body: Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                    )),
-                }),
-            )),
+        let expr = redex_no_box(
+            lambda("x", free_var("a")),
+            redex(
+                lambda("x", redex(bound_var("x"), bound_var("x"))),
+                lambda("x", redex(bound_var("x"), bound_var("x"))),
+            ),
         );
-        let expected = Expr::Var{name: "a".to_string(), is_free: true};
+        let expected = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -736,20 +610,12 @@ mod tests {
 
     #[test]
     fn reduction_inside_lambda_body() {
-        let expr = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "a".to_string(),
-                    body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                }),
-                Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-            )),
-        }; // lambda x . ((lambda a . a) x)
-        let expected = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-        };
+        let expr = lambda_no_box(
+            "x",
+            redex(lambda("a", bound_var("a")), bound_var("x"))
+        );
+        let expected = lambda_no_box("x", bound_var("x"));
+
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
@@ -761,21 +627,11 @@ mod tests {
 
     #[test]
     fn capture_free_var1() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                }),
-            }),
-            Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
+        let expr = redex_no_box(
+            lambda("x", lambda("y", bound_var("x"))),
+            free_var("y")
         );
-
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-        };
+        let expected = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -788,27 +644,11 @@ mod tests {
 
     #[test]
     fn capture_free_var2() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "z".to_string(),
-                body: Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
-            }),
+        let expr = redex_no_box(
+            lambda("x", lambda("y", bound_var("x"))),
+            lambda("z", free_var("y"))
         );
-
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::LambdaTerm {
-                var_name: "z".to_string(),
-                body: Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            }),
-        };
+        let expected = lambda_no_box("y", lambda("z", bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -821,27 +661,12 @@ mod tests {
 
     #[test]
     fn capture_free_var3() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                }),
-            }),
-            Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
-            )),
+        let expr = redex_no_box(
+            lambda("x", lambda("y", bound_var("x"))),
+            redex(free_var("a"), free_var("y")),
         );
 
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-            )),
-        };
+        let expected = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -854,27 +679,14 @@ mod tests {
 
     #[test]
     fn dont_recapture_bound_var() {
-        let expr = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "a".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "b".to_string(),
-                        body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                    }),
-                }),
-                Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-            )),
-        }; // \x -> ((\a b -> a) x)
-
-        let expected = Expr::LambdaTerm {
-            var_name: "x".to_string(),
-            body: Box::new(Expr::LambdaTerm {
-                var_name: "b".to_string(),
-                body: Box::new(Expr::Var {name: "x".to_string(), is_free: false }),
-            }),
-        }; // \x -> \b -> x
+        let expr = lambda_no_box(
+            "x",
+            redex(
+                lambda("a", lambda("b", bound_var("a"))),
+                bound_var("x"),
+            ),
+        );
+        let expected = lambda_no_box("x", lambda("b", bound_var("x")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -887,30 +699,17 @@ mod tests {
 
     #[test]
     fn alpha_conversion() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
-            }),
-        ); // (\x y -> x) (\y -> y)
-
+        let expr = redex_no_box(
+            lambda("x", lambda("y", bound_var("x"))),
+            lambda("y", bound_var("y"))
+        );
         // should reduce to \y y' -> y' but may reduce to \y y -> y if alpha
         // conversion is not being done properly
 
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::LambdaTerm {
-                var_name: "y'".to_string(),
-                body: Box::new(Expr::Var{ name: "y'".to_string(), is_free: false }),
-            }),
-        };
+        let expected = lambda_no_box(
+            "y",
+            lambda("y'", bound_var("y'")),
+        );
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -923,32 +722,15 @@ mod tests {
 
     #[test]
     fn alpha_conversion2() {
-        let expr = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "y'".to_string(),
-                        body: Box::new(Expr::Var{ name: "x".to_string(), is_free: false })
-                    }),
-                }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
-            }),
+        let expr = redex_no_box(
+            lambda("x", lambda("y", lambda("y'", bound_var("x")))),
+            lambda("y", bound_var("y")),
         );
-        let expected = Expr::LambdaTerm {
-            var_name: "y".to_string(),
-            body: Box::new(Expr::LambdaTerm {
-                var_name: "y'".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y''".to_string(),
-                    body: Box::new(Expr::Var { name: "y''".to_string(), is_free: false }),
-                }),
-            }),
-        };
+        let expected = lambda_no_box(
+            "y",
+            lambda("y'", lambda("y''", bound_var("y''")))
+        );
+
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
@@ -960,151 +742,77 @@ mod tests {
 
     #[test]
     fn several_stages() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::Redex(
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "x".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "y".to_string(),
-                            body: Box::new(Expr::LambdaTerm {
-                                var_name: "z".to_string(),
-                                body: Box::new(Expr::Redex(
-                                    Box::new(Expr::Redex(
-                                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                                        Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                                    )),
-                                    Box::new(Expr::Redex(
-                                        Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                                        Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                                    )),
-                                )),
-                            }),
-                        }),
-                    }),
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "a".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "b".to_string(),
-                            body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                        }),
-                    }),
-                )),
-                Box::new(Expr::LambdaTerm {
-                    var_name: "c".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "d".to_string(),
-                        body: Box::new(Expr::Var{ name: "c".to_string(), is_free: false }),
-                    }),
-                }),
-            )),
-            Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-        ); // (\x y z -> x z (y z)) (\a b -> a) (\c d -> d) n    -- OR: S K K a
+        let expr = redex_no_box(
+            redex(
+                redex(
+                    lambda("x",
+                           lambda("y",
+                                  lambda("z",
+                                         redex(
+                                             redex(bound_var("x"), bound_var("z")),
+                                             redex(bound_var("y"), bound_var("z")),
+                                         ),
+                     ))),
+                     lambda("a", lambda("b", bound_var("a"))),
+                ),
+                lambda("c", lambda("d", bound_var("d"))),
+            ),
+            free_var("n")
+        ); // S K K n
 
-        let expected1 = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "z".to_string(),
-                        body: Box::new(Expr::Redex(
-                            Box::new(Expr::Redex(
-                                Box::new(Expr::LambdaTerm {
-                                    var_name: "a".to_string(),
-                                    body: Box::new(Expr::LambdaTerm {
-                                        var_name: "b".to_string(),
-                                        body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                                    }),
-                                }),
-                                Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                            )),
-                            Box::new(Expr::Redex(
-                                Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                                Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                            )),
-                        )),
-                    }),
-                }),
-                Box::new(Expr::LambdaTerm {
-                    var_name: "c".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "d".to_string(),
-                        body: Box::new(Expr::Var{ name: "c".to_string(), is_free: false }),
-                    }),
-                }),
-            )),
-            Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
+        let expected1 = redex_no_box(
+            redex(
+                lambda("y",
+                       lambda("z",
+                              redex(
+                                  redex(
+                                      lambda("a", lambda("b", bound_var("a"))),
+                                      bound_var("z"),
+                                  ),
+                                  redex(bound_var("y"), bound_var("z")),
+                              )
+                       )
+                ),
+                lambda("c", lambda("d", bound_var("d"))),
+            ),
+            free_var("n")
         );
 
-        let expected2 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "z".to_string(),
-                body: Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::LambdaTerm {
-                            var_name: "a".to_string(),
-                            body: Box::new(Expr::LambdaTerm {
-                                var_name: "b".to_string(),
-                                body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                            }),
-                        }),
-                        Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                    )),
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::LambdaTerm {
-                            var_name: "c".to_string(),
-                            body: Box::new(Expr::LambdaTerm {
-                                var_name: "d".to_string(),
-                                body: Box::new(Expr::Var{ name: "c".to_string(), is_free: false }),
-                            }),
-                        }),
-                        Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                    )),
-                )),
-            }),
-            Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-        );
-        let expected3 = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "a".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "b".to_string(),
-                        body: Box::new(Expr::Var { name: "a".to_string(), is_free: false }),
-                    }),
-                }),
-                Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-            )),
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "c".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "d".to_string(),
-                        body: Box::new(Expr::Var { name: "c".to_string(), is_free: false }),
-                    }),
-                }),
-                Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-            )),
+        let expected2 = redex_no_box(
+            lambda("z",
+                   redex(
+                       redex(
+                           lambda("a", lambda("b", bound_var("a"))),
+                           bound_var("z"),
+                       ),
+                       redex(
+                           lambda("c", lambda("d", bound_var("d"))),
+                           bound_var("z"),
+                       ),
+                   ),
+            ),
+            free_var("n")
         );
 
-        let expected4 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "b".to_string(),
-                body: Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-            }),
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "c".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "d".to_string(),
-                        body: Box::new(Expr::Var { name: "c".to_string(), is_free: false }),
-                    }),
-                }),
-                Box::new(Expr::Var{name: "n".to_string(), is_free: true}),
-            )),
+        let expected3 = redex_no_box(
+            redex(
+                lambda("a", lambda("b", bound_var("a"))),
+                free_var("n"),
+            ),
+            redex(
+                lambda("c", lambda("d", bound_var("d"))),
+                free_var("n"),
+            ),
         );
 
-        let expected5 = Expr::Var{name: "n".to_string(), is_free: true};
+        let expected4 = redex_no_box(
+            lambda("b", free_var("n")),
+            redex(
+                lambda("c", lambda("d", bound_var("d"))),
+                free_var("n"),
+            ),
+        );
+        let expected5 = free_var_no_box("n");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -1129,74 +837,42 @@ mod tests {
 
     #[test]
     fn several_stages_alpha_conversion() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "x".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "y".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "z".to_string(),
-                            body: Box::new(Expr::Redex(
-                                Box::new(Expr::Var {name: "x".to_string(), is_free: false }),
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                                )),
-                            )),
-                        }),
-                    }),
-                }),
-                Box::new(Expr::LambdaTerm {
-                    var_name: "z".to_string(),
-                    body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                }),
-            )),
-            Box::new(Expr::LambdaTerm {
-                var_name: "z".to_string(),
-                body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-            }),
-        ); // (\x y z -> x y z) (\z -> z) (\z -> z)
+        let expr = redex_no_box(
+            redex(
+                lambda("x",
+                       lambda("y",
+                              lambda("z",
+                                     redex(
+                                         bound_var("x"),
+                                         redex(bound_var("y"), bound_var("z")),
+                                     ),
+                ))),
+                lambda("z", bound_var("z")),
+            ),
+            lambda("z", bound_var("z")),
+        );
 
-        let expected1 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "z".to_string(),
-                    body: Box::new(Expr::Redex(
-                        Box::new(Expr::LambdaTerm {
-                            var_name: "z'".to_string(),
-                            body: Box::new(Expr::Var{ name: "z'".to_string(), is_free: false }),
-                        }),
-                        Box::new(Expr::Redex(
-                            Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                            Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                        )),
-                    )),
-                }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "z".to_string(),
-                body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-            }),
-        ); // (\y z -> (\z' -> z') y z) (\z -> z)
-
-        let expected2 = Expr::LambdaTerm {
-            var_name: "z".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "z'".to_string(),
-                    body: Box::new(Expr::Var{ name: "z'".to_string(), is_free: false }),
-                }),
-                Box::new(Expr::Redex(
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "z''".to_string(),
-                        body: Box::new(Expr::Var{ name: "z''".to_string(), is_free: false }),
-                    }),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                )),
+        let expected1 = redex_no_box(
+            lambda("y",
+                   lambda("z",
+                          redex(
+                              lambda("z'", bound_var("z'")),
+                              redex(bound_var("y"), bound_var("z")),
+                          ),
             )),
-        }; // \z -> (\z' -> z') (\z'' -> z'') z
+            lambda("z", bound_var("z"))
+        );
+
+        let expected2 = lambda_no_box(
+            "z",
+            redex(
+                lambda("z'", bound_var("z'")),
+                redex(
+                    lambda("z''", bound_var("z''")),
+                    bound_var("z")
+                ),
+            ),
+        );
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -1209,124 +885,61 @@ mod tests {
 
     #[test]
     fn several_stages2() {
-        let expr = Expr::Redex(
-            Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "x".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "y".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "z".to_string(),
-                            body: Box::new(Expr::Redex(
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var { name: "x".to_string(), is_free: false }),
-                                    Box::new(Expr::Var { name: "z".to_string(), is_free: false }),
-                                )),
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var { name: "y".to_string(), is_free: false }),
-                                    Box::new(Expr::Var { name: "z".to_string(), is_free: false }),
-                                )),
-                            )),
-                        }),
-                    }),
-                }),
-                Box::new(Expr::LambdaTerm {
-                    var_name: "a".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "b".to_string(),
-                        body: Box::new(Expr::Var { name: "a".to_string(), is_free: false }),
-                    }),
-                }),
-            )),
-            Box::new(Expr::LambdaTerm {
-                var_name: "c".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "d".to_string(),
-                    body: Box::new(Expr::Var { name: "c".to_string(), is_free: false }),
-                }),
-            }),
-        ); // (\x y z -> x z (y z)) (\a b -> a) (\c d -> d)     -- OR: S K K
-
-        let expected1 = Expr::Redex(
-            Box::new(Expr::LambdaTerm {
-                var_name: "y".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "z".to_string(),
-                    body: Box::new(Expr::Redex(
-                        Box::new(Expr::Redex(
-                            Box::new(Expr::LambdaTerm {
-                                var_name: "a".to_string(),
-                                body: Box::new(Expr::LambdaTerm {
-                                    var_name: "b".to_string(),
-                                    body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                                }),
-                            }),
-                            Box::new(Expr::Var{ name: "z".to_string(), is_free: false}),
-                        )),
-                        Box::new(Expr::Redex(
-                            Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                            Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                        )),
-                    )),
-                }),
-            }),
-            Box::new(Expr::LambdaTerm {
-                var_name: "c".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "d".to_string(),
-                    body: Box::new(Expr::Var{ name: "c".to_string(), is_free: false }),
-                }),
-            }),
+        let expr = redex_no_box(
+            redex(
+                lambda("x",
+                       lambda("y",
+                              lambda("z",
+                                     redex(
+                                         redex(bound_var("x"), bound_var("z")),
+                                         redex(bound_var("y"), bound_var("z")),
+                                     ),
+                ))),
+                lambda("a", lambda("b", bound_var("a"))),
+            ),
+            lambda("c", lambda("d", bound_var("d"))),
         );
-        let expected2 = Expr::LambdaTerm {
-            var_name: "z".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::Redex(
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "a".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "b".to_string(),
-                            body: Box::new(Expr::Var{ name: "a".to_string(), is_free: false }),
-                        }),
-                    }),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                )),
-                Box::new(Expr::Redex(
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "c".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "d".to_string(),
-                            body: Box::new(Expr::Var { name: "c".to_string(), is_free: false }),
-                        }),
-                    }),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                )),
-            )),
-        };
-        let expected3 = Expr::LambdaTerm {
-            var_name: "z".to_string(),
-            body: Box::new(Expr::Redex(
-                Box::new(Expr::LambdaTerm {
-                    var_name: "b".to_string(),
-                    body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                }),
-                Box::new(Expr::Redex(
-                    Box::new(Expr::LambdaTerm {
-                        var_name: "c".to_string(),
-                        body: Box::new(Expr::LambdaTerm {
-                            var_name: "d".to_string(),
-                            body: Box::new(Expr::Var{ name: "c".to_string(), is_free: false }),
-                        }),
-                    }),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                )),
-            )),
-        };
 
-        let expected4 = Expr::LambdaTerm {
-            var_name: "z".to_string(),
-            body: Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-        };
+        let expected1 = redex_no_box(
+            lambda("y",
+                   lambda("z",
+                          redex(
+                              redex(
+                                  lambda("a", lambda("b", bound_var("a"))),
+                                  bound_var("z"),
+                              ),
+                              redex(bound_var("y"), bound_var("z")),
+                          ),
+            )),
+            lambda("c", lambda("d", bound_var("d"))),
+        );
+
+        let expected2 = lambda_no_box(
+            "z",
+            redex(
+                redex(
+                    lambda("a", lambda("b", bound_var("a"))),
+                    bound_var("z"),
+                ),
+                redex(
+                    lambda("c", lambda("d", bound_var("d"))),
+                    bound_var("z"),
+                ),
+            ),
+        );
+
+        let expected3 = lambda_no_box(
+            "z",
+            redex(
+                lambda("b", bound_var("z")),
+                redex(
+                    lambda("c", lambda("d", bound_var("d"))),
+                    bound_var("z"),
+                ),
+            ),
+        );
+
+        let expected4 = lambda_no_box("z", bound_var("z"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
