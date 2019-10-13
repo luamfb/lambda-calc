@@ -34,10 +34,14 @@ impl Ast {
     /// otherwise certain reductions would loop infintely:
     ///
     /// ```
-    /// let parser = Parser::new();
-    /// let redex = parser.parse("(lambda x . a) ((lambda y . y y) (lambda y . y y))");
+    /// # use lambda_calc::Parser;
+    /// # use lambda_calc::{Ast, Expr};
+    /// let mut parser = Parser::new();
+    /// let redex = parser
+    ///     .parse("(lambda x . a) ((lambda y . y y) (lambda y . y y))")
+    ///     .unwrap();
     /// let non_redex = redex.beta_reduce_print();
-    /// assert_eq!(non_redex, Expr::Var{name: "a".to_string(), is_free: true});
+    /// assert_eq!(non_redex, Ast::new(Expr::Var{name: "a".to_string(), is_free: true}));
     /// ```
     ///
     /// This function does not attempt to predict infinite loops.

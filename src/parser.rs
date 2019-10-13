@@ -23,19 +23,22 @@ impl Parser {
     /// Left associativity is assumed by default:
     ///
     /// ```
-    /// let parser = Parser::new();
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("a b c d"), parser.parse("(((a b) c) d)"));
     /// ```
     ///
     /// The lambda body stretches as far as possible:
     ///
     /// ```
-    /// let parser = Parser::new();
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("lambda x . a b c"), parser.parse("(lambda x . a b c)"));
     /// ```
     ///
     /// ```
-    /// let parser = Parser::new();
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("lambda x . a lambda y . y"),
     ///     parser.parse("(lambda x . a (lambda y . y))"));
     /// ```
@@ -43,7 +46,8 @@ impl Parser {
     /// Unnecessary parentheses are ignored:
     ///
     /// ```
-    /// let parser = Parser::new();
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("((((a))))"), parser.parse("a"));
     /// ```
     ///
