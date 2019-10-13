@@ -52,7 +52,6 @@ impl Ast {
 
     fn beta_reduce(mut self, should_print: bool) -> Ast {
         loop {
-            self.unset_reduced_last();
             let pair = self.beta_reduce_once(&mut HashSet::new());
             self = pair.0;
             let expr_has_changed = pair.1;
@@ -63,6 +62,11 @@ impl Ast {
                 println!("= {}", self);
             }
         }
+    }
+
+    fn beta_reduce_once(mut self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
+        self.unset_reduced_last();
+        self.beta_reduce_once_recur(lambda_vars_in_use)
     }
 
     fn unset_reduced_last(&mut self) {
@@ -83,7 +87,7 @@ impl Ast {
     // and a boolean which is whether or not a reduction could be made.
     // Call unset_reduced_last() before this.
     //
-    fn beta_reduce_once(self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
+    fn beta_reduce_once_recur(self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
         match self.expr {
             Expr::Redex(left, mut right) => {
                 if let Expr::LambdaTerm {var_name, body: mut lambda_body} = left.expr {
@@ -104,13 +108,13 @@ impl Ast {
                     (new_ast, true)
                 } else {
                     let (new_left, has_changed)
-                        = left.beta_reduce_once(lambda_vars_in_use);
+                        = left.beta_reduce_once_recur(lambda_vars_in_use);
                     if has_changed {
                         let new_ast = Ast::new(Expr::Redex(Box::new(new_left), right));
                         return (new_ast, true);
                     }
                     let (new_right, has_changed)
-                        = right.beta_reduce_once(lambda_vars_in_use);
+                        = right.beta_reduce_once_recur(lambda_vars_in_use);
                     let new_ast = Ast::new(Expr::Redex(
                         Box::new(new_left),
                         Box::new(new_right)
@@ -122,7 +126,7 @@ impl Ast {
                 //lambda_vars_in_use.insert(name.clone());
 
                 let (new_body, has_changed)
-                    = lambda_body.beta_reduce_once(lambda_vars_in_use);
+                    = lambda_body.beta_reduce_once_recur(lambda_vars_in_use);
 
                 //lambda_vars_in_use.remove(&name);
 
