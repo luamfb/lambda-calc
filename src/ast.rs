@@ -352,6 +352,16 @@ mod tests {
         Box::new(redex_no_box(left, right))
     }
 
+    fn last(mut ast: Box<Ast>) -> Box<Ast> {
+        ast.reduced_last = true;
+        ast
+    }
+
+    fn last_no_box(mut ast: Ast) -> Ast {
+        ast.reduced_last = true;
+        ast
+    }
+
     #[test]
     fn not_redex1() {
         let expr = free_var_no_box("a");
@@ -427,14 +437,15 @@ mod tests {
             lambda("x", bound_var("x")),
             free_var("a")
         );
-        let expected = free_var_no_box("a");
+        let expected = last_no_box(free_var_no_box("a"));
+        let expected_final = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -446,6 +457,10 @@ mod tests {
             )), free_var("a")
         );
         let expected = redex_no_box(
+            redex(last(free_var("a")), last(free_var("a"))),
+            last(free_var("a"))
+        );
+        let expected_final = redex_no_box(
             redex(free_var("a"), free_var("a")),
             free_var("a")
         );
@@ -456,7 +471,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -468,6 +483,10 @@ mod tests {
             )), free_var("c")
         );
         let expected = redex_no_box(
+            redex(free_var("a"), last(free_var("c"))),
+            free_var("b")
+        );
+        let expected_final = redex_no_box(
             redex(free_var("a"), free_var("c")),
             free_var("b")
         );
@@ -478,7 +497,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -487,14 +506,15 @@ mod tests {
             lambda("x", bound_var("x")),
             lambda("y", bound_var("y")),
         );
-        let expected = lambda_no_box("y", bound_var("y"));
+        let expected = last_no_box(lambda_no_box("y", bound_var("y")));
+        let expected_final = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -520,14 +540,15 @@ mod tests {
             lambda("x", lambda("y", redex(bound_var("x"), bound_var("y")))),
             free_var("a"),
         );
-        let expected = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
+        let expected = lambda_no_box("y", redex(last(free_var("a")), bound_var("y")));
+        let expected_final = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -553,6 +574,19 @@ mod tests {
             free_var("b"),
         );
         let expected = redex_no_box(
+            redex(last(free_var("b")), free_var("a")),
+            lambda("y", redex(
+                    redex(redex(last(free_var("b")), bound_var("y")), free_var("a")),
+                    lambda("z", redex(
+                               redex(
+                                   redex(last(free_var("b")), bound_var("y")),
+                                   bound_var("z"),
+                               ),
+                               free_var("a"),
+                    )),
+            )),
+        );
+        let expected_final = redex_no_box(
             redex(free_var("b"), free_var("a")),
             lambda("y", redex(
                     redex(redex(free_var("b"), bound_var("y")), free_var("a")),
@@ -565,12 +599,13 @@ mod tests {
                     )),
             )),
         );
+
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
         assert_eq!(expected, expr);
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -579,7 +614,10 @@ mod tests {
             lambda("x", redex(bound_var("x"), bound_var("x"))),
             lambda("x", redex(bound_var("x"), bound_var("x"))),
         );
-        let expected = expr.clone();
+        let expected = redex_no_box(
+            last(lambda("x", redex(bound_var("x"), bound_var("x")))),
+            last(lambda("x", redex(bound_var("x"), bound_var("x")))),
+        );
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -592,11 +630,12 @@ mod tests {
             lambda("x", bound_var("x")),
             redex(lambda("y", bound_var("y")), free_var("a"))
         );
-        let expected1 = redex_no_box(
+        let expected1 = last_no_box(redex_no_box(
             lambda("y", bound_var("y")),
             free_var("a")
-        );
-        let expected2 = free_var_no_box("a");
+        ));
+        let expected2 = last_no_box(free_var_no_box("a"));
+        let expected_final = free_var_no_box("a");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -608,7 +647,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected2, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -618,10 +657,11 @@ mod tests {
             lambda("y", bound_var("y")),
         );
         let expected1 = redex_no_box(
-            lambda("y", bound_var("y")),
-            lambda("y", bound_var("y")),
+            last(lambda("y", bound_var("y"))),
+            last(lambda("y", bound_var("y"))),
         );
-        let expected2 = lambda_no_box("y", bound_var("y"));
+        let expected2 = last_no_box(lambda_no_box("y", bound_var("y")));
+        let expected_final = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -633,7 +673,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected2, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -662,7 +702,8 @@ mod tests {
             "x",
             redex(lambda("a", bound_var("a")), bound_var("x"))
         );
-        let expected = lambda_no_box("x", bound_var("x"));
+        let expected = lambda_no_box("x", last(bound_var("x")));
+        let expected_final = lambda_no_box("x", bound_var("x"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -670,7 +711,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -679,7 +720,8 @@ mod tests {
             lambda("x", lambda("y", bound_var("x"))),
             free_var("y")
         );
-        let expected = lambda_no_box("y", bound_var("y"));
+        let expected = lambda_no_box("y", last(bound_var("y")));
+        let expected_final = lambda_no_box("y", bound_var("y"));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -687,7 +729,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -696,7 +738,8 @@ mod tests {
             lambda("x", lambda("y", bound_var("x"))),
             lambda("z", free_var("y"))
         );
-        let expected = lambda_no_box("y", lambda("z", bound_var("y")));
+        let expected = lambda_no_box("y", last(lambda("z", bound_var("y"))));
+        let expected_final = lambda_no_box("y", lambda("z", bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -704,7 +747,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -714,7 +757,8 @@ mod tests {
             redex(free_var("a"), free_var("y")),
         );
 
-        let expected = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
+        let expected = lambda_no_box("y", last(redex(free_var("a"), bound_var("y"))));
+        let expected_final = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -722,7 +766,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -734,7 +778,8 @@ mod tests {
                 bound_var("x"),
             ),
         );
-        let expected = lambda_no_box("x", lambda("b", bound_var("x")));
+        let expected = lambda_no_box("x", lambda("b", last(bound_var("x"))));
+        let expected_final = lambda_no_box("x", lambda("b", bound_var("x")));
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -742,11 +787,11 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
-    fn alpha_conversion() {
+    fn alpha_conversion1() {
         let expr = redex_no_box(
             lambda("x", lambda("y", bound_var("x"))),
             lambda("y", bound_var("y"))
@@ -755,6 +800,10 @@ mod tests {
         // conversion is not being done properly
 
         let expected = lambda_no_box(
+            "y",
+            last(lambda("y'", bound_var("y'"))),
+        );
+        let expected_final = lambda_no_box(
             "y",
             lambda("y'", bound_var("y'")),
         );
@@ -765,7 +814,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -776,6 +825,10 @@ mod tests {
         );
         let expected = lambda_no_box(
             "y",
+            lambda("y'", last(lambda("y''", bound_var("y''"))))
+        );
+        let expected_final = lambda_no_box(
+            "y",
             lambda("y'", lambda("y''", bound_var("y''")))
         );
 
@@ -785,11 +838,11 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(!has_changed);
-        assert_eq!(expected, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
-    fn several_stages() {
+    fn several_stages1() {
         let expr = redex_no_box(
             redex(
                 redex(
@@ -814,7 +867,7 @@ mod tests {
                        lambda("z",
                               redex(
                                   redex(
-                                      lambda("a", lambda("b", bound_var("a"))),
+                                      last(lambda("a", lambda("b", bound_var("a")))),
                                       bound_var("z"),
                                   ),
                                   redex(bound_var("y"), bound_var("z")),
@@ -834,7 +887,7 @@ mod tests {
                            bound_var("z"),
                        ),
                        redex(
-                           lambda("c", lambda("d", bound_var("d"))),
+                           last(lambda("c", lambda("d", bound_var("d")))),
                            bound_var("z"),
                        ),
                    ),
@@ -845,22 +898,22 @@ mod tests {
         let expected3 = redex_no_box(
             redex(
                 lambda("a", lambda("b", bound_var("a"))),
-                free_var("n"),
+                last(free_var("n")),
             ),
             redex(
                 lambda("c", lambda("d", bound_var("d"))),
-                free_var("n"),
+                last(free_var("n")),
             ),
         );
 
         let expected4 = redex_no_box(
-            lambda("b", free_var("n")),
+            lambda("b", last(free_var("n"))),
             redex(
                 lambda("c", lambda("d", bound_var("d"))),
                 free_var("n"),
             ),
         );
-        let expected5 = free_var_no_box("n");
+        let expected_final = free_var_no_box("n");
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
@@ -880,7 +933,7 @@ mod tests {
 
         let (expr, has_changed) = expr.beta_reduce_once(&mut HashSet::new());
         assert!(has_changed);
-        assert_eq!(expected5, expr);
+        assert_eq!(expected_final, expr);
     }
 
     #[test]
@@ -904,7 +957,7 @@ mod tests {
             lambda("y",
                    lambda("z",
                           redex(
-                              lambda("z'", bound_var("z'")),
+                              last(lambda("z'", bound_var("z'"))),
                               redex(bound_var("y"), bound_var("z")),
                           ),
             )),
@@ -916,7 +969,7 @@ mod tests {
             redex(
                 lambda("z'", bound_var("z'")),
                 redex(
-                    lambda("z''", bound_var("z''")),
+                    last(lambda("z''", bound_var("z''"))),
                     bound_var("z")
                 ),
             ),
@@ -953,7 +1006,7 @@ mod tests {
                    lambda("z",
                           redex(
                               redex(
-                                  lambda("a", lambda("b", bound_var("a"))),
+                                  last(lambda("a", lambda("b", bound_var("a")))),
                                   bound_var("z"),
                               ),
                               redex(bound_var("y"), bound_var("z")),
@@ -970,7 +1023,7 @@ mod tests {
                     bound_var("z"),
                 ),
                 redex(
-                    lambda("c", lambda("d", bound_var("d"))),
+                    last(lambda("c", lambda("d", bound_var("d")))),
                     bound_var("z"),
                 ),
             ),
@@ -979,7 +1032,7 @@ mod tests {
         let expected3 = lambda_no_box(
             "z",
             redex(
-                lambda("b", bound_var("z")),
+                lambda("b", last(bound_var("z"))),
                 redex(
                     lambda("c", lambda("d", bound_var("d"))),
                     bound_var("z"),
