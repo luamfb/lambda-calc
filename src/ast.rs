@@ -37,7 +37,8 @@ impl Ast {
     ///
     /// ```
     /// # use lambda_calc::Parser;
-    /// # use lambda_calc::{Ast, Expr};
+    /// # use lambda_calc::Ast;
+    /// # use lambda_calc::ast::Expr;
     /// let mut parser = Parser::new();
     /// let redex = parser
     ///     .parse("(lambda x . a) ((lambda y . y y) (lambda y . y y))")

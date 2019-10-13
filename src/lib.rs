@@ -10,4 +10,4 @@ pub mod parser;
 pub mod ast;
 
 pub use parser::Parser;
-pub use ast::{Ast, Expr};
+pub use ast::Ast;
