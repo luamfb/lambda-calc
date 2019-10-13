@@ -1,5 +1,5 @@
 use crate::lexer::{Token, TokenIter, Command};
-use crate::ast::Expr;
+use crate::ast::{Ast, Expr};
 use std::collections::{HashSet, HashMap};
 use std::io::{BufRead, BufReader};
 use std::fs::File;
@@ -8,7 +8,7 @@ use std::fs::File;
 /// Use with parse().
 ///
 pub struct Parser {
-    symbol_table: HashMap<String, Expr>,
+    symbol_table: HashMap<String, Ast>,
 }
 
 impl Parser {
@@ -24,7 +24,7 @@ impl Parser {
     // We should probably migrate the majority of this code base to a library
     // crate instead (including this file)
     //
-    /// Parse the string given in `line` and returns the corresponding Expr.
+    /// Parse the string given in `line` and returns the corresponding Ast.
     /// Note that this function does not beta-reduce the expression.
     /// Left associativity is assumed by default:
     ///
@@ -53,7 +53,7 @@ impl Parser {
     /// assert_eq!(parser.parse("((((a))))"), parser.parse("a"));
     /// ```
     ///
-    pub fn parse(&mut self, line: &str) -> Option<Expr> {
+    pub fn parse(&mut self, line: &str) -> Option<Ast> {
         let token_iter = TokenIter::new(&line);
         {
             let mut new_token_iter = token_iter.clone();
@@ -114,7 +114,7 @@ impl<'a, I> LineParser<'a, I>
         }
     }
 
-    fn parse(&mut self, symbol_table: &mut HashMap<String, Expr>) -> Option<Expr> {
+    fn parse(&mut self, symbol_table: &mut HashMap<String, Ast>) -> Option<Ast> {
         if let None = self.token_iter.clone().next() {
             return None; // empty line, ignore.
         }
@@ -126,13 +126,13 @@ impl<'a, I> LineParser<'a, I>
             self.parse_def(symbol_table);
             None
         } else {
-            let mut expr = self.parse_expr(Vec::new())?;
-            expr.substitute_symbols_from(symbol_table);
-            Some(expr)
+            let mut ast = self.parse_ast(Vec::new())?;
+            ast.substitute_symbols_from(symbol_table);
+            Some(ast)
         }
     }
 
-    fn parse_def(&mut self, symbol_table: &mut HashMap<String, Expr>) {
+    fn parse_def(&mut self, symbol_table: &mut HashMap<String, Ast>) {
         let name = match self.token_iter.next() {
             Some(Token::Id(s)) => s,
             _ => panic!("expected definition, but 1st token is not an ID"),
@@ -141,16 +141,16 @@ impl<'a, I> LineParser<'a, I>
             Some(Token::Def) => {},
             _ => panic!("expected definition, but 2nd token is not '=' or ':='"),
         }
-        match self.parse_expr(Vec::new()) {
+        match self.parse_ast(Vec::new()) {
             None => eprintln!("a definition can't bind to an empty expression"),
-            Some(mut expr) => match expr {
+            Some(mut ast) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
-                    expr.substitute_symbols_from(symbol_table);
-                    symbol_table.insert(name.to_string(), expr);
+                    ast.substitute_symbols_from(symbol_table);
+                    symbol_table.insert(name.to_string(), ast);
                 },
                 Expr::Redex(_,_) => {
-                    expr.substitute_symbols_from(symbol_table);
-                    let non_redex = expr.beta_reduce_quiet();
+                    ast.substitute_symbols_from(symbol_table);
+                    let non_redex = ast.beta_reduce_quiet();
                     symbol_table.insert(name.to_string(), non_redex);
                 },
                 Expr::Var{name: _, is_free: _} => {
@@ -162,7 +162,7 @@ impl<'a, I> LineParser<'a, I>
 
     // Our grammar is not LR(1) (and may not be context-free either),
     // so we parse by hand.
-    fn parse_expr(&mut self, mut queue: Vec<Expr>) -> Option<Expr> {
+    fn parse_ast(&mut self, mut queue: Vec<Ast>) -> Option<Ast> {
         loop {
             match self.token_iter.next() {
                 None | Some(Token::CloseParen) => {
@@ -170,13 +170,13 @@ impl<'a, I> LineParser<'a, I>
                 },
                 Some(Token::OpenParen) => {
                     queue.push(
-                        self.parse_expr(Vec::new())
+                        self.parse_ast(Vec::new())
                         .expect("null expression after open paren")
                     );
                 },
                 Some(Token::Id(s)) => {
                     let is_free = !self.lambda_vars.contains(s);
-                    queue.push(Expr::Var { name: s.to_string(), is_free, });
+                    queue.push(Ast::new(Expr::Var { name: s.to_string(), is_free, }));
                 },
                 Some(Token::Lambda) => {
                     queue.push(self.parse_lambda());
@@ -199,7 +199,7 @@ impl<'a, I> LineParser<'a, I>
     // which is treated as equivalent to
     //  lambda x -> (lambda y -> x)
     //
-    fn parse_lambda(&mut self) -> Expr {
+    fn parse_lambda(&mut self) -> Ast {
         match self.token_iter.next() {
             Some(Token::Id(name)) => {
                 if self.lambda_vars.contains(name) {
@@ -210,14 +210,14 @@ impl<'a, I> LineParser<'a, I>
                     panic!("outer lambda variable cannot appear again as an inner lambda variable");
                 }
                 self.lambda_vars.insert(name.to_string());
-                Expr::LambdaTerm {
+                Ast::new(Expr::LambdaTerm {
                     var_name: name.to_string(),
                     body: Box::new(self.parse_lambda()),
-                }
+                })
             },
             Some(Token::Gives) => {
                 // finalize lambda term by returning its body.
-                self.parse_expr(Vec::new())
+                self.parse_ast(Vec::new())
                     .expect("lambda term can't have empty body")
             },
             _ => panic!("this token is not allowed in the head of a lambda term."),
@@ -269,13 +269,13 @@ impl<'a, I> LineParser<'a, I>
     }
 }
 
-fn finalize_redex(mut queue: Vec<Expr>) -> Option<Expr> {
+fn finalize_redex(mut queue: Vec<Ast>) -> Option<Ast> {
     let mut q_drain = queue.drain(..);
 
     let mut result = q_drain.next()?;
     for expr in q_drain {
         // left associative
-        result = Expr::Redex(Box::new(result), Box::new(expr));
+        result = Ast::new(Expr::Redex(Box::new(result), Box::new(expr)));
     }
     Some(result)
 }
@@ -285,55 +285,55 @@ mod tests {
     use super::*;
 
     // wrappers to reduce boilerplate.
-    fn free_var_no_box(name: &str) -> Expr {
-        Expr::Var {
+    fn free_var_no_box(name: &str) -> Ast {
+        Ast::new(Expr::Var {
             name: name.to_string(),
             is_free: true,
-        }
+        })
     }
-    fn bound_var_no_box(name: &str) -> Expr {
-        Expr::Var {
+    fn bound_var_no_box(name: &str) -> Ast {
+        Ast::new(Expr::Var {
             name: name.to_string(),
             is_free: false,
-        }
+        })
     }
-    fn lambda_no_box(var_name: &str, body: Box<Expr>) -> Expr {
-        Expr::LambdaTerm {
+    fn lambda_no_box(var_name: &str, body: Box<Ast>) -> Ast {
+        Ast::new(Expr::LambdaTerm {
             var_name: var_name.to_string(),
             body,
-        }
+        })
     }
-    fn redex_no_box(left: Box<Expr>, right: Box<Expr>) -> Expr {
-        Expr::Redex(
+    fn redex_no_box(left: Box<Ast>, right: Box<Ast>) -> Ast {
+        Ast::new(Expr::Redex(
             left,
             right,
-        )
+        ))
     }
-    fn free_var(name: &str) -> Box<Expr> {
+    fn free_var(name: &str) -> Box<Ast> {
         Box::new(free_var_no_box(name))
     }
-    fn bound_var(name: &str) -> Box<Expr> {
+    fn bound_var(name: &str) -> Box<Ast> {
         Box::new(bound_var_no_box(name))
     }
-    fn lambda(var_name: &str, body: Box<Expr>) -> Box<Expr> {
+    fn lambda(var_name: &str, body: Box<Ast>) -> Box<Ast> {
         Box::new(lambda_no_box(var_name, body))
     }
-    fn redex(left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
+    fn redex(left: Box<Ast>, right: Box<Ast>) -> Box<Ast> {
         Box::new(redex_no_box(left, right))
     }
 
     #[test]
     fn empty_expr() {
-        let mut symbol_table = HashMap::<String, Expr>::new();
+        let mut symbol_table = HashMap::<String, Ast>::new();
         let expr = LineParser::new(vec![].into_iter()).parse(&mut symbol_table);
         assert_eq!(None, expr);
     }
 
     // skeleton for non-empty expressions' tests (not definitions)
-    fn expr_test<'a>(tokens: Vec<Token<'a>>, expected: Expr) {
-        let mut symbol_table = HashMap::<String, Expr>::new();
-        let expr = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
-        assert_eq!(Some(expected), expr);
+    fn expr_test<'a>(tokens: Vec<Token<'a>>, expected: Ast) {
+        let mut symbol_table = HashMap::<String, Ast>::new();
+        let ast = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
+        assert_eq!(Some(expected), ast);
     }
 
     #[test]
@@ -903,14 +903,14 @@ mod tests {
     }
 
     // for definition tests.
-    fn def_test<'a>(def_tokens: Vec<Token<'a>>, tokens: Vec<Token<'a>>, expected: Expr) {
-        let mut symbol_table = HashMap::<String, Expr>::new();
+    fn def_test<'a>(def_tokens: Vec<Token<'a>>, tokens: Vec<Token<'a>>, expected: Ast) {
+        let mut symbol_table = HashMap::<String, Ast>::new();
         assert_eq!(
             None,
             LineParser::new(def_tokens.into_iter()).parse(&mut symbol_table)
         );
-        let expr = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
-        assert_eq!(Some(expected), expr);
+        let ast = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
+        assert_eq!(Some(expected), ast);
     }
 
     #[test]
@@ -1012,7 +1012,7 @@ mod tests {
         ]; // b = lambda y . a
         let tokens = vec![ Token::Id("b") ];
 
-        let mut symbol_table = HashMap::<String, Expr>::new();
+        let mut symbol_table = HashMap::<String, Ast>::new();
         assert_eq!(
             LineParser::new(def1_tokens.into_iter()).parse(&mut symbol_table),
             None

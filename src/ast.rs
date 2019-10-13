@@ -3,13 +3,30 @@ use std::fmt::{Display, Formatter};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Expr {
-    Var { name: String, is_free: bool, },
-    LambdaTerm {var_name: String, body: Box<Expr>},
-    Redex(Box<Expr>, Box<Expr>),
+pub struct Ast {
+    expr: Expr,
+    reduced_last: bool,
 }
 
-impl Expr {
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Expr {
+    Var { name: String, is_free: bool, },
+    LambdaTerm {var_name: String, body: Box<Ast>},
+    Redex(Box<Ast>, Box<Ast>),
+}
+
+impl Ast {
+    pub fn new(expr: Expr) -> Ast {
+        Ast {
+            expr,
+            reduced_last: false,
+        }
+    }
+
+    pub fn expr_ref(&self) -> &Expr {
+        &self.expr
+    }
+
     /// Applies beta reductions until it's no longer possible, printing
     /// the result after each round of beta reduction.
     ///
@@ -24,16 +41,16 @@ impl Expr {
     /// ```
     ///
     /// This function does not attempt to predict infinite loops.
-    pub fn beta_reduce_print(self) -> Expr {
+    pub fn beta_reduce_print(self) -> Ast {
         self.beta_reduce(true)
     }
 
     /// Identical to beta_reduce_print() but doesn't print anything.
-    pub fn beta_reduce_quiet(self) -> Expr {
+    pub fn beta_reduce_quiet(self) -> Ast {
         self.beta_reduce(false)
     }
 
-    fn beta_reduce(mut self, should_print: bool) -> Expr {
+    fn beta_reduce(mut self, should_print: bool) -> Ast {
         loop {
             let pair = self.beta_reduce_once(&mut HashSet::new());
             self = pair.0;
@@ -50,10 +67,11 @@ impl Expr {
     // Returns the expression after attemtping to apply a single beta-reduction,
     // and a boolean which is whether or not a reduction could be made.
     //
-    fn beta_reduce_once(self, lambda_vars_in_use: &mut HashSet<String>) -> (Expr, bool) {
-        match self {
+    fn beta_reduce_once(mut self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
+        self.reduced_last = false;
+        match self.expr {
             Expr::Redex(left, mut right) => {
-                if let Expr::LambdaTerm {var_name, body: mut lambda_body} = *left {
+                if let Expr::LambdaTerm {var_name, body: mut lambda_body} = left.expr {
                     // note that we don't include this lambda's var name in
                     // lambda_vars_in_use, since it's the variable that will
                     // be replaced by reduction
@@ -67,22 +85,22 @@ impl Expr {
 
                     lambda_vars_in_use.clear();
 
-                    let new_expr = *lambda_body;
-                    (new_expr, true)
+                    let new_ast = *lambda_body;
+                    (new_ast, true)
                 } else {
                     let (new_left, has_changed)
                         = left.beta_reduce_once(lambda_vars_in_use);
                     if has_changed {
-                        let new_expr = Expr::Redex(Box::new(new_left), right);
-                        return (new_expr, true);
+                        let new_ast = Ast::new(Expr::Redex(Box::new(new_left), right));
+                        return (new_ast, true);
                     }
                     let (new_right, has_changed)
                         = right.beta_reduce_once(lambda_vars_in_use);
-                    let new_expr = Expr::Redex(
+                    let new_ast = Ast::new(Expr::Redex(
                         Box::new(new_left),
                         Box::new(new_right)
-                    );
-                    (new_expr, has_changed)
+                    ));
+                    (new_ast, has_changed)
                 }
             },
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
@@ -93,10 +111,10 @@ impl Expr {
 
                 //lambda_vars_in_use.remove(&name);
 
-                let new_lambda = Expr::LambdaTerm {
+                let new_lambda = Ast::new(Expr::LambdaTerm {
                     var_name: name,
                     body: Box::new(new_body),
-                };
+                });
                 (new_lambda, has_changed)
             },
             _ => (self, false),
@@ -104,7 +122,7 @@ impl Expr {
     }
 
     fn get_all_lambda_vars(&self, lambda_vars_in_use: &mut HashSet<String>) {
-        match self {
+        match &self.expr {
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
                 lambda_vars_in_use.insert(name.clone());
                 lambda_body.get_all_lambda_vars(lambda_vars_in_use);
@@ -119,7 +137,7 @@ impl Expr {
 
     fn alpha_convert(&mut self, lambda_vars_in_use: &mut HashSet<String>,
                      conversions: &mut HashMap<String, String>) {
-        match self {
+        match &mut self.expr {
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
                 if let Some(new_name) = get_next_avail_name(name, lambda_vars_in_use) {
                     lambda_vars_in_use.insert(name.clone());
@@ -143,10 +161,10 @@ impl Expr {
     }
 
     fn replace_bound_var(&mut self,
-                         arg: &Expr,
+                         arg: &Ast,
                          var_name: &str,
                          lambda_vars: &mut HashSet<String>) {
-        match self {
+        match &mut self.expr {
             Expr::Redex(left, right) => {
                 left.replace_bound_var(arg, var_name, lambda_vars);
                 right.replace_bound_var(arg, var_name, lambda_vars);
@@ -158,14 +176,15 @@ impl Expr {
                 if !*is_free && var_name == name {
                     let mut arg_captured = arg.clone();
                     arg_captured.capture_free_vars(lambda_vars);
-                    *self = arg_captured;
+                    self.expr = arg_captured.expr;
+                    self.reduced_last = true;
                 }
             },
         };
     }
 
     fn capture_free_vars(&mut self, lambda_vars: &HashSet<String>) {
-        match self {
+        match &mut self.expr {
             Expr::Var{ name, is_free } => {
                 if *is_free && lambda_vars.contains(name) {
                     *is_free = false;
@@ -181,8 +200,8 @@ impl Expr {
         }
     }
 
-    pub fn substitute_symbols_from(&mut self, symbol_table: &HashMap<String, Expr>) {
-        match self {
+    pub fn substitute_symbols_from(&mut self, symbol_table: &HashMap<String, Ast>) {
+        match &mut self.expr {
             Expr::Redex(left, right) => {
                 left.substitute_symbols_from(symbol_table);
                 right.substitute_symbols_from(symbol_table);
@@ -193,7 +212,7 @@ impl Expr {
             Expr::Var {name, is_free} => if *is_free {
                 match symbol_table.get(name) {
                     None => return,
-                    Some(expr) => *self = expr.clone(),
+                    Some(ast) => self.expr = ast.clone().expr,
                 };
             },
         }
@@ -201,10 +220,10 @@ impl Expr {
 
     fn actual_fmt(&self, f: &mut Formatter,
                   outer_term_is_lambda: bool) -> fmt::Result {
-        match self {
+        match &self.expr {
             Expr::Redex(left, right) => {
                 let mut right_paren_needed = false;
-                if let Expr::Redex(_,_) = **right {
+                if let Expr::Redex(_,_) = right.expr {
                     right_paren_needed = true;
                 }
 
@@ -229,7 +248,7 @@ impl Expr {
                 } else {
                     write!(f, "λ{}", name)?;
                 }
-                match **lambda_body {
+                match lambda_body.expr {
                     Expr::LambdaTerm {var_name: _, body: _} => {},
                     _ => write!(f, ". ")?,
                 }
@@ -245,7 +264,7 @@ impl Expr {
     }
 }
 
-impl Display for Expr {
+impl Display for Ast {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.actual_fmt(f, false)
     }
@@ -267,40 +286,40 @@ mod tests {
     use super::*;
 
     // wrappers to reduce boilerplate.
-    fn free_var_no_box(name: &str) -> Expr {
-        Expr::Var {
+    fn free_var_no_box(name: &str) -> Ast {
+        Ast::new(Expr::Var {
             name: name.to_string(),
             is_free: true,
-        }
+        })
     }
-    fn bound_var_no_box(name: &str) -> Expr {
-        Expr::Var {
+    fn bound_var_no_box(name: &str) -> Ast {
+        Ast::new(Expr::Var {
             name: name.to_string(),
             is_free: false,
-        }
+        })
     }
-    fn lambda_no_box(var_name: &str, body: Box<Expr>) -> Expr {
-        Expr::LambdaTerm {
+    fn lambda_no_box(var_name: &str, body: Box<Ast>) -> Ast {
+        Ast::new(Expr::LambdaTerm {
             var_name: var_name.to_string(),
             body,
-        }
+        })
     }
-    fn redex_no_box(left: Box<Expr>, right: Box<Expr>) -> Expr {
-        Expr::Redex(
+    fn redex_no_box(left: Box<Ast>, right: Box<Ast>) -> Ast {
+        Ast::new(Expr::Redex(
             left,
             right,
-        )
+        ))
     }
-    fn free_var(name: &str) -> Box<Expr> {
+    fn free_var(name: &str) -> Box<Ast> {
         Box::new(free_var_no_box(name))
     }
-    fn bound_var(name: &str) -> Box<Expr> {
+    fn bound_var(name: &str) -> Box<Ast> {
         Box::new(bound_var_no_box(name))
     }
-    fn lambda(var_name: &str, body: Box<Expr>) -> Box<Expr> {
+    fn lambda(var_name: &str, body: Box<Ast>) -> Box<Ast> {
         Box::new(lambda_no_box(var_name, body))
     }
-    fn redex(left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
+    fn redex(left: Box<Ast>, right: Box<Ast>) -> Box<Ast> {
         Box::new(redex_no_box(left, right))
     }
 
