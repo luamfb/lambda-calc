@@ -18,12 +18,6 @@ impl Parser {
         }
     }
 
-    // TODO so it turns out binary crates are not expected to have these
-    // comments, so cargo test won't test them. We could just put them in a
-    // man page but the tests wouldn't run and that ruins the whole thing.
-    // We should probably migrate the majority of this code base to a library
-    // crate instead (including this file)
-    //
     /// Parse the string given in `line` and returns the corresponding Ast.
     /// Note that this function does not beta-reduce the expression.
     /// Left associativity is assumed by default:
