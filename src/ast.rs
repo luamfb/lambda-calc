@@ -2,6 +2,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::collections::{HashMap, HashSet};
 
+/// The abstract syntax tree constructed from the lambda expression.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Ast {
     expr: Expr,
@@ -23,6 +24,7 @@ impl Ast {
         }
     }
 
+    /// Get an un-mutable reference to the underlying expression.
     pub fn expr_ref(&self) -> &Expr {
         &self.expr
     }

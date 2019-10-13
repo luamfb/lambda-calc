@@ -1,3 +1,4 @@
+/// Tokens understood by the parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token<'a> {
     Invalid,
@@ -10,6 +11,7 @@ pub enum Token<'a> {
     Command(Command),
 }
 
+/// Commands understood by the parser.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Command {
     Help,
@@ -17,6 +19,33 @@ pub enum Command {
     Define, // :=, pseudo-command
 }
 
+/// An iterator over the tokens of a string. Used by Parser.
+///
+/// These tokens are all considered the same:
+///
+/// ```
+/// # use lambda_calc::lexer::TokenIter;
+/// let t1 = TokenIter::new("λ");
+/// let t2 = TokenIter::new("lambda");
+/// let t3 = TokenIter::new("\\"); // backslash, Haskell-like
+///
+/// assert_eq!(t1.clone().next(), t2.clone().next());
+/// assert_eq!(t1.clone().next(), t3.clone().next());
+/// ```
+///
+/// As are these:
+///
+/// ```
+/// # use lambda_calc::lexer::TokenIter;
+/// // separate the variables from the body in a lambda term
+/// let t1 = TokenIter::new(".");
+/// let t2 = TokenIter::new("->");
+/// let t3 = TokenIter::new("=>");
+///
+/// assert_eq!(t1.clone().next(), t2.clone().next());
+/// assert_eq!(t1.clone().next(), t3.clone().next());
+/// ```
+///
 #[derive(Clone)]
 pub struct TokenIter<'a> {
     s: &'a str,

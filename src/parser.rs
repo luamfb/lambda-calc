@@ -20,7 +20,11 @@ impl Parser {
 
     /// Parse the string given in `line` and returns the corresponding Ast.
     /// Note that this function does not beta-reduce the expression.
-    /// Left associativity is assumed by default:
+    ///
+    /// This parser uses all usual rules for implicit parenthesization in
+    /// lambda calculus, namely:
+    ///
+    /// - Left associativity is assumed by default:
     ///
     /// ```
     /// # use lambda_calc::Parser;
@@ -28,7 +32,7 @@ impl Parser {
     /// assert_eq!(parser.parse("a b c d"), parser.parse("(((a b) c) d)"));
     /// ```
     ///
-    /// The lambda body stretches as far as possible:
+    /// - The lambda body stretches as far as possible:
     ///
     /// ```
     /// # use lambda_calc::Parser;
@@ -40,15 +44,38 @@ impl Parser {
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("lambda x . a lambda y . y"),
-    ///     parser.parse("(lambda x . a (lambda y . y))"));
+    ///     parser.parse("(lambda x . (a (lambda y . y)))"));
     /// ```
     ///
-    /// Unnecessary parentheses are ignored:
+    /// - Unnecessary parentheses are ignored:
     ///
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("((((a))))"), parser.parse("a"));
+    /// ```
+    ///
+    /// Additionally,
+    ///
+    /// - Multiple variables may be put under a same lambda:
+    ///
+    /// ```
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
+    /// assert_eq!(parser.parse("lambda x y z . x y"),
+    ///     parser.parse("lambda x . lambda y . lambda z . x y"));
+    /// ```
+    ///
+    ///
+    /// - Lambda terms may be bound to symbols and later used:
+    ///
+    /// ```
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
+    /// assert_eq!(parser.parse("K = lambda x y . x"), None);
+    /// assert_eq!(parser.parse("I = lambda x . x"), None);
+    /// assert_eq!(parser.parse("K I"),
+    ///     parser.parse("(lambda x y . x) (lambda x . x)"));
     /// ```
     ///
     pub fn parse(&mut self, line: &str) -> Option<Ast> {
@@ -63,7 +90,7 @@ impl Parser {
         LineParser::new(token_iter).parse(&mut self.symbol_table)
     }
 
-    /// Parse all lines contained by filename.
+    /// Parse all lines in filename.
     pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
         let reader = BufReader::new(File::open(filename)?);
         for line in reader.lines() {
