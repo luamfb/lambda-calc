@@ -35,10 +35,6 @@ impl Completer for RustylineHelper {
     }
 }
 
-// TODO: would be really cool if we did our own highlighter that takes
-// anything between parens and makes all of it the same color, preferrably
-// keeping the color consistent between beta reductions
-//
 impl Highlighter for RustylineHelper {
     fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
         self.highlighter.highlight(line, pos)
