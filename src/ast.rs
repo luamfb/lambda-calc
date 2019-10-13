@@ -220,6 +220,12 @@ impl Ast {
 
     fn actual_fmt(&self, f: &mut Formatter,
                   outer_term_is_lambda: bool) -> fmt::Result {
+        if self.reduced_last {
+            // ideally we should check if output is actually a tty
+            // (and not e.g. a pipe) before doing this
+            write!(f, "\x1B[32m")?; // green
+        }
+
         match &self.expr {
             Expr::Redex(left, right) => {
                 let mut right_paren_needed = false;
@@ -259,6 +265,10 @@ impl Ast {
                 }
             },
             Expr::Var { name, is_free: _ } => write!(f, "{}", name)?,
+        }
+
+        if self.reduced_last {
+            write!(f, "\x1B[0m")?; // undo color selection
         }
         Ok(())
     }
