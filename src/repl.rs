@@ -8,8 +8,8 @@ use rustyline::hint::Hinter;
 use rustyline::line_buffer::LineBuffer;
 use rustyline_derive::Helper;
 
-extern crate lambda_calculator;
-use lambda_calculator::parser::Parser;
+extern crate lambda_calc;
+use lambda_calc::parser::Parser;
 
 #[derive(Helper)]
 struct RustylineHelper {

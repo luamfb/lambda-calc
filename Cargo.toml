@@ -1,5 +1,5 @@
 [package]
-name = "lambda_calculator"
+name = "lambda_calc"
 version = "0.1.0"
 authors = ["Luana C M de F Barbosa <luamfb@riseup.net>"]
 edition = "2018"
