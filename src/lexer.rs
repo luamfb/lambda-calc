@@ -53,12 +53,31 @@ pub struct TokenIter<'a> {
     cmd_arg_expected: bool,
 }
 
-struct CommandClassifier<'a> {
-    short_name: &'a str,
-    long_name: &'a str,
+pub struct CommandClassifier<'a> {
+    pub short_name: &'a str,
+    pub long_name: &'a str,
     cmd: Command,
     arg_expected: bool,
+    pub description: &'a str,
 }
+
+pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
+    CommandClassifier {
+        short_name: "h",
+        long_name: "help",
+        cmd: Command::Help,
+        arg_expected: false,
+        description: "print this message.",
+    },
+    CommandClassifier {
+        short_name: "l",
+        long_name: "load",
+        cmd: Command::Load,
+        arg_expected: true,
+        description: "parse all lines from a file.",
+    },
+];
+
 
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token<'a>;
@@ -175,23 +194,9 @@ impl<'a> TokenIter<'a> {
             return Some(Command::Define); // ":="
         }
 
-        let classifier = &[
-            CommandClassifier {
-                short_name: "h",
-                long_name: "help",
-                cmd: Command::Help,
-                arg_expected: false,
-            },
-            CommandClassifier {
-                short_name: "l",
-                long_name: "load",
-                cmd: Command::Load,
-                arg_expected: true,
-            },
-        ];
         let (name_len, _) = self.get_next_word_and_last_char_len();
         let name = &rest_of_string[0..name_len];
-        for class in classifier {
+        for class in COMMAND_CLASSIFIER {
             if name == class.short_name || name == class.long_name {
                 self.pos += name.len();
                 self.cmd_arg_expected = class.arg_expected;

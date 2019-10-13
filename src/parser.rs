@@ -1,8 +1,16 @@
+use crate::lexer;
 use crate::lexer::{Token, TokenIter, Command};
 use crate::ast::{Ast, Expr};
 use std::collections::{HashSet, HashMap};
 use std::io::{BufRead, BufReader};
 use std::fs::File;
+
+const USAGE: &str =
+"A lambda calculus interpreter.
+See <TODO link to documentation> for details.
+
+Available commands:
+";
 
 /// Our hand-written parser.
 /// Use with parse().
@@ -102,7 +110,13 @@ impl Parser {
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
         match cmd {
             Command::Help => {
-                // TODO print usage
+                println!("{}", USAGE);
+                for command in lexer::COMMAND_CLASSIFIER {
+                    println!(":{}, :{}\t{}",
+                             command.short_name,
+                             command.long_name,
+                             command.description);
+                }
             },
             Command::Load => match arg {
                 None => {
