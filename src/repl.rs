@@ -10,6 +10,7 @@ use rustyline_derive::Helper;
 
 extern crate lambda_calc;
 use lambda_calc::parser::Parser;
+use lambda_calc::cmd;
 
 #[derive(Helper)]
 struct RustylineHelper {
@@ -109,6 +110,10 @@ pub fn read_eval_print_loop() {
     let mut rl = make_rustyline_editor(&histfile);
 
     let mut parser = Parser::new();
+    if !parse_cmdline_options(&mut parser) {
+        return;
+    }
+
     loop {
         match rl.readline("> ") {
             Ok(line) => {
@@ -135,4 +140,42 @@ pub fn read_eval_print_loop() {
     if let Err(_) = rl.save_history(&histfile) {
         eprintln!("failed to save history file");
     };
+}
+
+// returns true if the REPL should be run afterwards, false otherwise.
+fn parse_cmdline_options(parser: &mut Parser) -> bool {
+    let mut args = env::args();
+
+    // skip program name
+    if let None = args.next() {
+        return true;
+    }
+
+    let arg1 = match args.next() {
+        None => return true,
+        Some(s) => s,
+    };
+    if arg1 == "-h" || arg1 == "--help" {
+        cmd::print_usage();
+        return false;
+    } else if arg1 == "-l" || arg1 == "--load" {
+        return load_opt(args, parser);
+    }
+    false
+}
+
+fn load_opt(mut args: env::Args, parser: &mut Parser) -> bool {
+    match args.next() {
+        None => {
+            eprintln!("load command requires an argument.");
+            false
+        },
+        Some(s) => {
+            if let Err(e) = parser.parse_file(&s) {
+                println!("failed to load file '{}': {}", s, e);
+                return false;
+            }
+            true
+        }
+    }
 }
