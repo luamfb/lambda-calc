@@ -1,3 +1,5 @@
+use crate::cmd::Command;
+
 /// Tokens understood by the parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token<'a> {
@@ -9,14 +11,6 @@ pub enum Token<'a> {
     OpenParen,
     CloseParen,
     Command(Command),
-}
-
-/// Commands understood by the parser.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Command {
-    Help,
-    Load,
-    Define, // :=, pseudo-command
 }
 
 /// An iterator over the tokens of a string. Used by Parser.
@@ -52,32 +46,6 @@ pub struct TokenIter<'a> {
     pos: usize,
     cmd_arg_expected: bool,
 }
-
-pub struct CommandClassifier<'a> {
-    pub short_name: &'a str,
-    pub long_name: &'a str,
-    cmd: Command,
-    arg_expected: bool,
-    pub description: &'a str,
-}
-
-pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
-    CommandClassifier {
-        short_name: "h",
-        long_name: "help",
-        cmd: Command::Help,
-        arg_expected: false,
-        description: "print this message.",
-    },
-    CommandClassifier {
-        short_name: "l",
-        long_name: "load",
-        cmd: Command::Load,
-        arg_expected: true,
-        description: "parse all lines from a file.",
-    },
-];
-
 
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token<'a>;
@@ -196,7 +164,7 @@ impl<'a> TokenIter<'a> {
 
         let (name_len, _) = self.get_next_word_and_last_char_len();
         let name = &rest_of_string[0..name_len];
-        for class in COMMAND_CLASSIFIER {
+        for class in crate::cmd::COMMAND_CLASSIFIER {
             if name == class.short_name || name == class.long_name {
                 self.pos += name.len();
                 self.cmd_arg_expected = class.arg_expected;
