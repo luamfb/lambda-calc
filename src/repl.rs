@@ -124,11 +124,9 @@ pub fn read_eval_print_loop() {
                 }
             },
             Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
                 break;
             },
             Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
                 break;
             }
             Err(err) => {
