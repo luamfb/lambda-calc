@@ -33,10 +33,10 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
 
 pub fn print_usage() {
     println!(
-    "A lambda calculus interpreter.
-    See <TODO link to documentation> for details.
+"A lambda calculus interpreter.
+See <TODO link to documentation> for details.
 
-    Available commands:"
+Available commands:"
     );
     for command in COMMAND_CLASSIFIER {
         println!(":{}, :{}\t{}",
