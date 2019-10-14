@@ -6,9 +6,9 @@ step by step, highlighting the expression reduced last.
 
 ## Screenshots
 
-![Screenshot 1](screenhots/combinators.png)
+![Screenshot 1](screenshots/combinators.png)
 
-![Screenshot 2](screenhots/load_add.png)
+![Screenshot 2](screenshots/load_add.png)
 
 ## Installation
 
