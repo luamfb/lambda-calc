@@ -161,6 +161,7 @@ fn parse_cmdline_options(parser: &mut Parser) -> bool {
     } else if arg1 == "-l" || arg1 == "--load" {
         return load_opt(args, parser);
     }
+    println!("unknown command-line argument '{}'", arg1);
     false
 }
 
