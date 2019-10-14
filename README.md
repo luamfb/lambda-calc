@@ -1,8 +1,10 @@
 An untyped lambda calculus interpreter.
 
 It has support for usual rules of implicit parenthesization of lambda calculus
-(see [this](https://docs.rs/lambda_calc)), and shows each beta reduction
-step by step, highlighting the expression reduced last.
+(see the documentation for the `parse` function
+[on here](https://docs.rs/lambda_calc)),
+and shows each beta reduction step by step, highlighting the expression
+reduced last.
 
 ## Screenshots
 
