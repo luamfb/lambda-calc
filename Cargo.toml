@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Luana C M de F Barbosa <luamfb@riseup.net>"]
 edition = "2018"
 
+#![doc(html_root_url = "https://docs.rs/lambda_calc")]
+
 [dependencies]
 rustyline = "5.0.0"
 rustyline-derive = "0.2.0"

@@ -34,7 +34,7 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
 pub fn print_usage() {
     println!(
 "A lambda calculus interpreter.
-See <TODO link to documentation> for details.
+See <https://docs.rs/lambda_calc> for details.
 
 Available commands:"
     );
