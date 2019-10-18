@@ -154,7 +154,10 @@ impl<'a, I> LineParser<'a, I>
             None
         } else {
             let mut ast = self.parse_ast(Vec::new())?;
-            ast.substitute_symbols_from(symbol_table);
+            {
+                let mut lambda_vars = HashSet::new();
+                ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
+            }
             Some(ast)
         }
     }
@@ -172,11 +175,17 @@ impl<'a, I> LineParser<'a, I>
             None => eprintln!("a definition can't bind to an empty expression"),
             Some(mut ast) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
-                    ast.substitute_symbols_from(symbol_table);
+                    {
+                        let mut lambda_vars = HashSet::new();
+                        ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
+                    }
                     symbol_table.insert(name.to_string(), ast);
                 },
                 Expr::Redex(_,_) => {
-                    ast.substitute_symbols_from(symbol_table);
+                    {
+                        let mut lambda_vars = HashSet::new();
+                        ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
+                    }
                     let non_redex = ast.beta_reduce_quiet();
                     symbol_table.insert(name.to_string(), non_redex);
                 },
@@ -1053,5 +1062,26 @@ mod tests {
             Some(lambda_no_box("y", lambda("x", bound_var("x")))),
             expr
         );
+    }
+
+    #[test]
+    fn alpha_conversion_def() {
+        let def_tokens = vec![
+            Token::Id("id"), Token::Def,
+            Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("x"),
+        ];
+        let tokens = vec![
+            Token::Lambda, Token::Id("x"), Token::Gives,
+            Token::Id("x"), Token::Id("id"),
+        ];
+        let expected = lambda_no_box(
+            "x",
+            redex(
+                bound_var("x"),
+                lambda("x'", bound_var("x'")),
+            ),
+        );
+        def_test(def_tokens, tokens, expected);
+
     }
 }

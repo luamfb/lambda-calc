@@ -1,6 +1,6 @@
 [package]
 name = "lambda_calc"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Luana C M de F Barbosa <luamfb@riseup.net>"]
 edition = "2018"
 description = "A CLI lambda calculus interpreter"
