@@ -40,6 +40,14 @@ pub enum Token<'a> {
 /// assert_eq!(t1.clone().next(), t3.clone().next());
 /// ```
 ///
+/// Comments start with '#' and extend until the end of line:
+/// ```
+/// # use lambda_calc::lexer::TokenIter;
+/// let t1 = TokenIter::new("# This is a comment");
+///
+/// assert_eq!(t1.clone().next(), None);
+/// ```
+///
 #[derive(Clone)]
 pub struct TokenIter<'a> {
     s: &'a str,
@@ -81,6 +89,10 @@ impl<'a> Iterator for TokenIter<'a> {
                     },
                     None => Some(Token::Invalid),
                 };
+            } else if first_char == '#' {
+                // comment; skip to the end of line.
+                self.pos = self.s.len();
+                return None;
             }
         }
 
@@ -285,4 +297,30 @@ mod tests {
         assert_eq!(iter.next(), Some(Token::Id("x")));
         assert_eq!(iter.next(), None);
     }
+
+    #[test]
+    fn comment_beginning_line() {
+        let s = "# comment";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn comment_whitespace() {
+        let s = "   # comment";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn comment_after_valid_tokens() {
+        let s = "lambda x . x # comment";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Lambda));
+        assert_eq!(iter.next(), Some(Token::Id("x")));
+        assert_eq!(iter.next(), Some(Token::Gives));
+        assert_eq!(iter.next(), Some(Token::Id("x")));
+        assert_eq!(iter.next(), None);
+    }
+
 }
