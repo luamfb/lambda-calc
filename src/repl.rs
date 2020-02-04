@@ -1,16 +1,25 @@
-use std::env;
-use std::borrow::Cow;
-use rustyline::{At, Cmd, CompletionType, Context, Editor, KeyPress, Movement, Word};
-use rustyline::completion::{Completer, FilenameCompleter, Pair};
-use rustyline::error::ReadlineError;
-use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
-use rustyline::hint::Hinter;
-use rustyline::line_buffer::LineBuffer;
+use std::{
+    env,
+    borrow::Cow,
+};
+use rustyline::{
+    At,
+    Cmd,
+    CompletionType,
+    Context,
+    Editor,
+    KeyPress,
+    Movement,
+    Word,
+    completion::{Completer, FilenameCompleter, Pair},
+    error::ReadlineError,
+    highlight::{Highlighter, MatchingBracketHighlighter},
+    hint::Hinter,
+    line_buffer::LineBuffer,
+};
 use rustyline_derive::Helper;
 
-extern crate lambda_calc;
-use lambda_calc::parser::Parser;
-use lambda_calc::cmd;
+use crate::parser::Parser;
 
 #[derive(Helper)]
 struct RustylineHelper {
