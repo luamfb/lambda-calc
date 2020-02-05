@@ -89,7 +89,7 @@ impl Parser {
                 return None;
             }
         }
-        LineParser::new(token_iter).parse(&mut self.symbol_table)
+        LineParser::new(token_iter).parse(self)
     }
 
     /// Parse all lines in filename.
@@ -99,6 +99,16 @@ impl Parser {
             self.parse(&line?);
         }
         Ok(())
+    }
+
+    /// Return an immutable reference to an expression if its name can be found
+    /// in the symbol table.
+    pub fn get_symbol(&self, name: &str) -> Option<&Ast> {
+        self.symbol_table.get(name)
+    }
+
+    pub fn insert_symbol(&mut self, name: &str, ast: Ast) {
+        self.symbol_table.insert(name.to_string(), ast);
     }
 
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
@@ -141,7 +151,7 @@ impl<'a, I> LineParser<'a, I>
         }
     }
 
-    fn parse(&mut self, symbol_table: &mut HashMap<String, Ast>) -> Option<Ast> {
+    fn parse(&mut self, parser: &mut Parser) -> Option<Ast> {
         if let None = self.token_iter.clone().next() {
             return None; // empty line, ignore.
         }
@@ -150,7 +160,7 @@ impl<'a, I> LineParser<'a, I>
             return None;
         }
         if is_def {
-            self.parse_def(symbol_table);
+            self.parse_def(parser);
             None
         } else {
             let mut ast = self.parse_ast(Vec::new())?;
@@ -162,7 +172,7 @@ impl<'a, I> LineParser<'a, I>
         }
     }
 
-    fn parse_def(&mut self, symbol_table: &mut HashMap<String, Ast>) {
+    fn parse_def(&mut self, parser: &mut Parser) {
         let name = match self.token_iter.next() {
             Some(Token::Id(s)) => s,
             _ => panic!("expected definition, but 1st token is not an ID"),
@@ -175,19 +185,15 @@ impl<'a, I> LineParser<'a, I>
             None => eprintln!("a definition can't bind to an empty expression"),
             Some(mut ast) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
-                    {
-                        let mut lambda_vars = HashSet::new();
-                        ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
-                    }
-                    symbol_table.insert(name.to_string(), ast);
+                    parser.insert_symbol(name,  ast);
                 },
                 Expr::Redex(_,_) => {
                     {
                         let mut lambda_vars = HashSet::new();
                         ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
                     }
-                    let non_redex = ast.beta_reduce_quiet();
-                    symbol_table.insert(name.to_string(), non_redex);
+                    let non_redex = ast.beta_reduce_quiet(parser);
+                    parser.insert_symbol(name, non_redex);
                 },
                 Expr::Var{name: _, is_free: _} => {
                     eprintln!("a definition can't bind to a single variable");
