@@ -358,15 +358,15 @@ mod tests {
 
     #[test]
     fn empty_expr() {
-        let mut symbol_table = HashMap::<String, Ast>::new();
-        let expr = LineParser::new(vec![].into_iter()).parse(&mut symbol_table);
+        let mut parser = Parser::new();
+        let expr = LineParser::new(vec![].into_iter()).parse(&mut parser);
         assert_eq!(None, expr);
     }
 
     // skeleton for non-empty expressions' tests (not definitions)
     fn expr_test<'a>(tokens: Vec<Token<'a>>, expected: Ast) {
-        let mut symbol_table = HashMap::<String, Ast>::new();
-        let ast = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
+        let mut parser = Parser::new();
+        let ast = LineParser::new(tokens.into_iter()).parse(&mut parser);
         assert_eq!(Some(expected), ast);
     }
 
@@ -938,12 +938,12 @@ mod tests {
 
     // for definition tests.
     fn def_test<'a>(def_tokens: Vec<Token<'a>>, tokens: Vec<Token<'a>>, expected: Ast) {
-        let mut symbol_table = HashMap::<String, Ast>::new();
+        let mut parser = Parser::new();
         assert_eq!(
             None,
-            LineParser::new(def_tokens.into_iter()).parse(&mut symbol_table)
+            LineParser::new(def_tokens.into_iter()).parse(&mut parser)
         );
-        let ast = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
+        let ast = LineParser::new(tokens.into_iter()).parse(&mut parser);
         assert_eq!(Some(expected), ast);
     }
 
@@ -1046,16 +1046,16 @@ mod tests {
         ]; // b = lambda y . a
         let tokens = vec![ Token::Id("b") ];
 
-        let mut symbol_table = HashMap::<String, Ast>::new();
+        let mut parser = Parser::new();
         assert_eq!(
-            LineParser::new(def1_tokens.into_iter()).parse(&mut symbol_table),
+            LineParser::new(def1_tokens.into_iter()).parse(&mut parser),
             None
         );
         assert_eq!(
-            LineParser::new(def2_tokens.into_iter()).parse(&mut symbol_table),
+            LineParser::new(def2_tokens.into_iter()).parse(&mut parser),
             None
         );
-        let expr = LineParser::new(tokens.into_iter()).parse(&mut symbol_table);
+        let expr = LineParser::new(tokens.into_iter()).parse(&mut parser);
         assert_eq!(
             Some(lambda_no_box("y", lambda("x", bound_var("x")))),
             expr
