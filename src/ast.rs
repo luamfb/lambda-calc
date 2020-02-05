@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::collections::{HashMap, HashSet};
+use crate::parser::Parser;
 
 /// The abstract syntax tree constructed from the lambda expression.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -48,18 +49,18 @@ impl Ast {
     /// ```
     ///
     /// This function does not attempt to predict infinite loops.
-    pub fn beta_reduce_print(self) -> Ast {
-        self.beta_reduce(true)
+    pub fn beta_reduce_print(self, parser: &Parser) -> Ast {
+        self.beta_reduce(parser, true)
     }
 
     /// Identical to beta_reduce_print() but doesn't print anything.
-    pub fn beta_reduce_quiet(self) -> Ast {
-        self.beta_reduce(false)
+    pub fn beta_reduce_quiet(self, parser: &Parser) -> Ast {
+        self.beta_reduce(parser, false)
     }
 
-    fn beta_reduce(mut self, should_print: bool) -> Ast {
+    fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Ast {
         loop {
-            let pair = self.beta_reduce_once(&mut HashSet::new());
+            let pair = self.beta_reduce_once(&mut HashSet::new(), parser);
             self = pair.0;
             let expr_has_changed = pair.1;
             if !expr_has_changed {
@@ -71,9 +72,11 @@ impl Ast {
         }
     }
 
-    fn beta_reduce_once(mut self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
+    fn beta_reduce_once(mut self,
+                        lambda_vars_in_use: &mut HashSet<String>,
+                        parser: &Parser) -> (Ast, bool) {
         self.unset_reduced_last();
-        self.beta_reduce_once_recur(lambda_vars_in_use)
+        self.beta_reduce_once_recur(lambda_vars_in_use, parser)
     }
 
     fn unset_reduced_last(&mut self) {
@@ -90,50 +93,79 @@ impl Ast {
         }
     }
 
+    fn beta_reduce_redex_recur(left: Box<Ast>,
+                               right: Box<Ast>,
+                               lambda_vars_in_use: &mut HashSet<String>,
+                               parser: &Parser) -> (Ast, bool) {
+        let (new_left, has_changed)
+            = left.beta_reduce_once_recur(lambda_vars_in_use, parser);
+        if has_changed {
+            let new_ast = Ast::new(Expr::Redex(Box::new(new_left), right));
+            return (new_ast, true);
+        }
+        let (new_right, has_changed)
+            = right.beta_reduce_once_recur(lambda_vars_in_use, parser);
+        let new_ast = Ast::new(Expr::Redex(
+            Box::new(new_left),
+            Box::new(new_right)
+        ));
+        (new_ast, has_changed)
+    }
+
     // Returns the expression after attemtping to apply a single beta-reduction,
     // and a boolean which is whether or not a reduction could be made.
     // Call unset_reduced_last() before this.
     //
-    fn beta_reduce_once_recur(self, lambda_vars_in_use: &mut HashSet<String>) -> (Ast, bool) {
+    fn beta_reduce_once_recur(self,
+                              lambda_vars_in_use: &mut HashSet<String>,
+                              parser: &Parser) -> (Ast, bool) {
         match self.expr {
             Expr::Redex(left, mut right) => {
-                if let Expr::LambdaTerm {var_name, body: mut lambda_body} = left.expr {
-                    // note that we don't include this lambda's var name in
-                    // lambda_vars_in_use, since it's the variable that will
-                    // be replaced by reduction
-                    //
-                    lambda_body.get_all_lambda_vars(lambda_vars_in_use);
-                    {
-                        let mut conversions = HashMap::new();
-                        right.alpha_convert(lambda_vars_in_use, &mut conversions);
-                    }
-                    lambda_body.replace_bound_var(&right, &var_name, lambda_vars_in_use);
+                match left.expr {
+                    Expr::LambdaTerm {var_name, body: mut lambda_body} => {
+                        // note that we don't include this lambda's var name in
+                        // lambda_vars_in_use, since it's the variable that will
+                        // be replaced by reduction
+                        //
+                        lambda_body.get_all_lambda_vars(lambda_vars_in_use);
+                        {
+                            let mut conversions = HashMap::new();
+                            right.alpha_convert(lambda_vars_in_use, &mut conversions);
+                        }
+                        lambda_body.replace_bound_var(&right, &var_name, lambda_vars_in_use);
 
-                    lambda_vars_in_use.clear();
+                        lambda_vars_in_use.clear();
 
-                    let new_ast = *lambda_body;
-                    (new_ast, true)
-                } else {
-                    let (new_left, has_changed)
-                        = left.beta_reduce_once_recur(lambda_vars_in_use);
-                    if has_changed {
-                        let new_ast = Ast::new(Expr::Redex(Box::new(new_left), right));
-                        return (new_ast, true);
+                        let new_ast = *lambda_body;
+                        (new_ast, true)
+                    },
+                    Expr::Var { name, is_free:true } => {
+                        // if it's a free variable, try to find its name in the
+                        // symbol table
+                        if let Some(ast_ref) = parser.get_symbol(&name) {
+                            let new_ast = Ast::new(Expr::Redex(
+                                Box::new(ast_ref.clone()),
+                                right,
+                            ));
+                            (new_ast, true)
+                        } else {
+                            let new_left = Box::new(Ast::new(Expr::Var {
+                                name,
+                                is_free: true,
+                            }));
+                            Ast::beta_reduce_redex_recur(new_left, right, lambda_vars_in_use, parser)
+                        }
+                    },
+                    _ => {
+                        Ast::beta_reduce_redex_recur(left, right, lambda_vars_in_use, parser)
                     }
-                    let (new_right, has_changed)
-                        = right.beta_reduce_once_recur(lambda_vars_in_use);
-                    let new_ast = Ast::new(Expr::Redex(
-                        Box::new(new_left),
-                        Box::new(new_right)
-                    ));
-                    (new_ast, has_changed)
                 }
             },
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
                 //lambda_vars_in_use.insert(name.clone());
 
                 let (new_body, has_changed)
-                    = lambda_body.beta_reduce_once_recur(lambda_vars_in_use);
+                    = lambda_body.beta_reduce_once_recur(lambda_vars_in_use, parser);
 
                 //lambda_vars_in_use.remove(&name);
 
@@ -226,6 +258,7 @@ impl Ast {
         }
     }
 
+    /*
     pub fn substitute_symbols_from(&mut self,
                                    symbol_table: &HashMap<String, Ast>,
                                    lambda_vars: &mut HashSet<String>) {
@@ -254,6 +287,7 @@ impl Ast {
             },
         }
     }
+    */
 
     fn actual_fmt(&self, f: &mut Formatter,
                   outer_term_is_lambda: bool) -> fmt::Result {

@@ -124,7 +124,7 @@ pub fn read_eval_print_loop(mut parser: Parser) {
                 rl.add_history_entry(line.as_str());
                 if let Some(expr) = parser.parse(&line) {
                     println!("= {}", expr);
-                    expr.beta_reduce_print();
+                    expr.beta_reduce_print(&mut parser);
                 }
             },
             Err(ReadlineError::Interrupted) => {

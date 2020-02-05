@@ -163,11 +163,7 @@ impl<'a, I> LineParser<'a, I>
             self.parse_def(parser);
             None
         } else {
-            let mut ast = self.parse_ast(Vec::new())?;
-            {
-                let mut lambda_vars = HashSet::new();
-                ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
-            }
+            let ast = self.parse_ast(Vec::new())?;
             Some(ast)
         }
     }
@@ -183,15 +179,11 @@ impl<'a, I> LineParser<'a, I>
         }
         match self.parse_ast(Vec::new()) {
             None => eprintln!("a definition can't bind to an empty expression"),
-            Some(mut ast) => match ast.expr_ref() {
+            Some(ast) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
                     parser.insert_symbol(name,  ast);
                 },
                 Expr::Redex(_,_) => {
-                    {
-                        let mut lambda_vars = HashSet::new();
-                        ast.substitute_symbols_from(symbol_table, &mut lambda_vars);
-                    }
                     let non_redex = ast.beta_reduce_quiet(parser);
                     parser.insert_symbol(name, non_redex);
                 },
