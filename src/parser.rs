@@ -1,10 +1,14 @@
-use crate::lexer::{Token, TokenIter};
-use crate::ast::{Ast, Expr};
-use crate::cmd;
-use crate::cmd::Command;
-use std::collections::{HashSet, HashMap};
-use std::io::{BufRead, BufReader};
-use std::fs::File;
+use crate::{
+    lexer::{Token, TokenIter},
+    ast::{Ast, Expr},
+    cmd,
+    cmd::Command,
+};
+use std::{
+    collections::{HashSet, HashMap},
+    io::{BufRead, BufReader},
+    fs::File,
+};
 
 /// Our hand-written parser.
 /// Use with parse().
