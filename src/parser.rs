@@ -73,15 +73,29 @@ impl Parser {
     /// ```
     ///
     ///
-    /// - Lambda terms may be bound to symbols and later used:
+    /// - Lambda terms may be bound to symbols and later used.
+    ///
+    /// Note that the symbol substitution is lazy, meaning it is deferred until
+    /// truly needed when perfoming a beta reduction:
     ///
     /// ```
-    /// # use lambda_calc::Parser;
+    /// # use lambda_calc::{Parser, Ast, ast::Expr};
     /// let mut parser = Parser::new();
     /// assert_eq!(parser.parse("K = lambda x y . x"), None);
-    /// assert_eq!(parser.parse("I = lambda x . x"), None);
-    /// assert_eq!(parser.parse("K I"),
-    ///     parser.parse("(lambda x y . x) (lambda x . x)"));
+    /// let redex = parser.parse("K a b");
+    /// // we haven't asked for any beta reduction, so K has not been
+    /// // substituted yet
+    /// let expected = Ast::new(Expr::Redex(
+    ///     Box::new(Ast::new(Expr::Redex(
+    ///         Box::new(Ast::new(Expr::Var { name: "K".to_string(), is_free: true })),
+    ///         Box::new(Ast::new(Expr::Var { name: "a".to_string(), is_free: true })),
+    ///     ))),
+    ///     Box::new(Ast::new(Expr::Var { name: "b".to_string(), is_free: true })),
+    /// )); // ((K a) b)
+    /// assert_eq!(redex, Some(expected));
+    /// let reduced = redex.unwrap().beta_reduce_quiet(&parser);
+    /// let expected = Ast::new(Expr::Var { name: "a".to_string(), is_free: true });
+    /// assert_eq!(reduced, expected);
     /// ```
     ///
     pub fn parse(&mut self, line: &str) -> Option<Ast> {
@@ -111,6 +125,7 @@ impl Parser {
         self.symbol_table.get(name)
     }
 
+    /// Insert a symbol and its corresponding expression into the symbol table.
     pub fn insert_symbol(&mut self, name: &str, ast: Ast) {
         self.symbol_table.insert(name.to_string(), ast);
     }
