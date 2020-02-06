@@ -940,15 +940,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn insert_get_symbol() {
+        let mut parser = Parser::new();
+        let ast = lambda_no_box("x", bound_var("x"));
+        parser.insert_symbol("I", ast.clone());
+        assert_eq!(parser.get_symbol("I"), Some(&ast));
+    }
+
     // for definition tests.
-    fn def_test<'a>(def_tokens: Vec<Token<'a>>, tokens: Vec<Token<'a>>, expected: Ast) {
+    fn def_test<'a>(name: &str, def_tokens: Vec<Token<'a>>, expected: Option<&Ast>) {
         let mut parser = Parser::new();
         assert_eq!(
             None,
             LineParser::new(def_tokens.into_iter()).parse(&mut parser)
         );
-        let ast = LineParser::new(tokens.into_iter()).parse(&mut parser);
-        assert_eq!(Some(expected), ast);
+        let ast = parser.get_symbol(name);
+        assert_eq!(expected, ast);
     }
 
     #[test]
@@ -957,9 +965,8 @@ mod tests {
             Token::Id("I"), Token::Def,
             Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("x")
         ];
-        let tokens = vec![ Token::Id("I") ];
         let expected = lambda_no_box("x", bound_var("x"));
-        def_test(def_tokens, tokens, expected);
+        def_test("I", def_tokens, Some(&expected));
     }
 
     #[test]
@@ -967,11 +974,12 @@ mod tests {
         let def_tokens = vec![
             Token::Id("x"), Token::Def, Token::Id("a")
         ];
-        let tokens = vec![ Token::Id("x") ];
-        let expected = free_var_no_box("x");
-        def_test(def_tokens, tokens, expected);
+        def_test("x", def_tokens, None);
     }
 
+    /*
+     * TODO: because of the lazy susbst. we have to move all these tests
+     * to the ast module, calling Parser's insert_symbol directly.
     #[test]
     fn def_replaced_in_free_lambda_var() {
         let def_tokens = vec![
@@ -1084,6 +1092,6 @@ mod tests {
             ),
         );
         def_test(def_tokens, tokens, expected);
-
     }
+    */
 }
