@@ -1191,22 +1191,22 @@ mod tests {
         let ast = lambda_no_box(
             "x",
             redex(
+                free_var("id"),
                 bound_var("x"),
-                free_var("id")
             ),
         );
         let expected = lambda_no_box(
             "x",
             redex(
-                bound_var("x"),
                 last(lambda("x'", bound_var("x'"))),
+                bound_var("x"),
             ),
         );
         let expected_final = lambda_no_box(
             "x",
             redex(
-                bound_var("x"),
                 lambda("x'", bound_var("x'")),
+                bound_var("x"),
             ),
         );
 
