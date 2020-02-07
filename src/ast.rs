@@ -175,6 +175,14 @@ impl Ast {
                 });
                 (new_lambda, has_changed)
             },
+            Expr::Var { name, is_free: true } => {
+                if let Some(ast) = parser.get_symbol(&name) {
+                    (ast.clone(), true)
+                } else {
+                    let new_self = Ast::new(Expr::Var { name, is_free: true });
+                    (new_self, false)
+                }
+            },
             _ => (self, false),
         }
     }
