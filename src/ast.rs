@@ -143,8 +143,10 @@ impl Ast {
                         // if it's a free variable, try to find its name in the
                         // symbol table
                         if let Some(ast_ref) = parser.get_symbol(&name) {
+                            let mut new_left = ast_ref.clone();
+                            new_left.reduced_last = true;
                             let new_ast = Ast::new(Expr::Redex(
-                                Box::new(ast_ref.clone()),
+                                Box::new(new_left),
                                 right,
                             ));
                             (new_ast, true)
@@ -177,7 +179,9 @@ impl Ast {
             },
             Expr::Var { name, is_free: true } => {
                 if let Some(ast) = parser.get_symbol(&name) {
-                    (ast.clone(), true)
+                    let mut new_ast = ast.clone();
+                    new_ast.reduced_last = true;
+                    (new_ast, true)
                 } else {
                     let new_self = Ast::new(Expr::Var { name, is_free: true });
                     (new_self, false)
