@@ -64,11 +64,30 @@ impl Ast {
             self = pair.0;
             let expr_has_changed = pair.1;
             if !expr_has_changed {
-                return self;
+                return self.last_step_beta_reduce(&parser);
             }
             if should_print {
                 println!("= {}", self);
             }
+        }
+    }
+
+    // This function is due to a corner case: if the entire expression
+    // is a free variable, look it up from the symbol table.
+    //
+    fn last_step_beta_reduce(self, parser: &Parser) -> Ast {
+        match self.expr {
+            Expr::Var { name, is_free: true } => {
+                if let Some(ast) = parser.get_symbol(&name) {
+                    let mut new_ast = ast.clone();
+                    new_ast.reduced_last = true;
+                    new_ast
+                } else {
+                    // reconstruct variable
+                    Ast::new(Expr::Var { name, is_free: true })
+                }
+            },
+            _ => self,
         }
     }
 
@@ -176,16 +195,6 @@ impl Ast {
                     body: Box::new(new_body),
                 });
                 (new_lambda, has_changed)
-            },
-            Expr::Var { name, is_free: true } => {
-                if let Some(ast) = parser.get_symbol(&name) {
-                    let mut new_ast = ast.clone();
-                    new_ast.reduced_last = true;
-                    (new_ast, true)
-                } else {
-                    let new_self = Ast::new(Expr::Var { name, is_free: true });
-                    (new_self, false)
-                }
             },
             _ => (self, false),
         }
