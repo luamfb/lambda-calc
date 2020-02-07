@@ -1029,4 +1029,184 @@ mod tests {
         assert!(has_changed);
         assert_eq!(expected4, expr);
     }
+
+    #[test]
+    fn def_replaced_in_free_lambda_var() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("I", lambda_no_box("x", bound_var("x")));
+
+        let ast = lambda_no_box(
+            "y",
+            redex(
+                free_var("I"),
+                bound_var("y")
+            ),
+        );
+        let expected1 = lambda_no_box(
+            "y",
+            redex(
+                last(lambda("x",
+                       bound_var("x"),
+                )),
+                bound_var("y"),
+            ),
+        );
+        let expected2 = lambda_no_box(
+            "y",
+            last(bound_var("y")),
+        );
+        let expected_final = lambda_no_box(
+            "y",
+            bound_var("y"),
+        );
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected2);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(ast, expected_final);
+    }
+
+    #[test]
+    fn def_not_replaced_in_bound_var() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("a", lambda_no_box("x", bound_var("x")));
+
+        let ast = lambda_no_box("a", bound_var("a"));
+        let expected = ast.clone();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn def_replaced_redex() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("I", lambda_no_box("x", bound_var("x")));
+
+        let ast = redex(
+            free_var("I"),
+            free_var("I"),
+        );
+        let expected1 = redex_no_box(
+            last(lambda("x", bound_var("x"))),
+            free_var("I")
+        );
+        let expected2 = last_no_box(free_var_no_box("I"));
+        let expected3 = last_no_box(lambda_no_box("x", bound_var("x")));
+        let expected_final = lambda_no_box("x", bound_var("x"));
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected2);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected3);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(ast, expected_final);
+    }
+
+    #[test]
+    fn def_with_redex() {
+       let mut parser = Parser::new();
+        parser.insert_symbol(
+            "a",
+            redex_no_box(
+                lambda("x", bound_var("x")),
+                lambda("y", bound_var("y"))
+            ),
+        );
+        let ast = free_var_no_box("a");
+        let expected1 = last_no_box(redex_no_box(
+                lambda("x", bound_var("x")),
+                lambda("y", bound_var("y"))
+        ));
+        let expected2 = last_no_box(lambda_no_box("y", bound_var("y")));
+        let expected_final = lambda_no_box("y", bound_var("y"));
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected2);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(ast, expected_final);
+    }
+
+    #[test]
+    fn multilevel_def() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("a", lambda_no_box("x", bound_var("x")));
+        parser.insert_symbol("b", lambda_no_box("y", free_var("a")));
+
+        let ast = free_var_no_box("b");
+        let expected1 = last_no_box(lambda_no_box("y", free_var("a")));
+        let expected2 = lambda_no_box("y", last(lambda("x", bound_var("x"))));
+        let expected_final = lambda_no_box("y", lambda("x", bound_var("x")));
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected2);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(ast, expected_final);
+    }
+
+    #[test]
+    fn alpha_conversion_def() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("id", lambda_no_box("x", bound_var("x")));
+
+        let ast = lambda_no_box(
+            "x",
+            redex(
+                bound_var("x"),
+                free_var("id")
+            ),
+        );
+        let expected = lambda_no_box(
+            "x",
+            redex(
+                bound_var("x"),
+                last(lambda("x'", bound_var("x'"))),
+            ),
+        );
+        let expected_final = lambda_no_box(
+            "x",
+            redex(
+                bound_var("x"),
+                lambda("x'", bound_var("x'")),
+            ),
+        );
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected);
+        assert!(has_changed);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected_final);
+        assert!(!has_changed);
+    }
 }
