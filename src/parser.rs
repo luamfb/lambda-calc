@@ -412,18 +412,6 @@ mod tests {
         ]; // x y z w       -- should become (((x y) z) w)
         expr_test(
             tokens,
-            /*
-            Expr::Redex(
-                Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: true }),
-                        Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
-                    )),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: true }),
-                )),
-                Box::new(Expr::Var{ name: "w".to_string(), is_free: true }),
-            )
-            */
             redex_no_box(
                 redex(
                     redex(free_var("x"), free_var("y")),
@@ -450,18 +438,6 @@ mod tests {
 
         expr_test(
             tokens,
-            /*
-            Expr::Redex(
-                Box::new(Expr::Redex(
-                    Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: true }),
-                        Box::new(Expr::Var{ name: "y".to_string(), is_free: true }),
-                    )),
-                    Box::new(Expr::Var{ name: "z".to_string(), is_free: true }),
-                )),
-                Box::new(Expr::Var{ name: "w".to_string(), is_free: true }),
-            )
-            */
             redex_no_box(
                 redex(
                     redex(free_var("x"), free_var("y")),
@@ -547,15 +523,6 @@ mod tests {
         ]; // lambda x . (x a)
         expr_test(
             tokens,
-            /*
-            Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::Redex(
-                        Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                        Box::new(Expr::Var{ name: "a".to_string(), is_free: true }),
-                ))
-            }
-            */
             lambda_no_box("x", redex(bound_var("x"), free_var("a")))
         );
     }
@@ -585,25 +552,6 @@ mod tests {
                                   bound_var("z")
                               ),
             )))
-            /*
-            Expr::LambdaTerm {
-                var_name: "x".to_string(),
-                body: Box::new(Expr::LambdaTerm {
-                    var_name: "y".to_string(),
-                    body: Box::new(Expr::LambdaTerm {
-                        var_name: "z".to_string(),
-                        body:
-                            Box::new(Expr::Redex(
-                                Box::new(Expr::Redex(
-                                    Box::new(Expr::Var{ name: "x".to_string(), is_free: false }),
-                                    Box::new(Expr::Var{ name: "y".to_string(), is_free: false }),
-                                )),
-                            Box::new(Expr::Var{ name: "z".to_string(), is_free: false }),
-                        ))
-                    })
-                })
-            }
-            */
         );
     }
 
