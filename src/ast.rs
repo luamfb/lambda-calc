@@ -1172,23 +1172,28 @@ mod tests {
                 bound_var("x"),
             ),
         );
-        let expected = lambda_no_box(
+        let expected1 = lambda_no_box(
             "x",
             redex(
                 last(lambda("x'", bound_var("x'"))),
                 bound_var("x"),
             ),
         );
+        let expected2 = lambda_no_box(
+            "x",
+            last(bound_var("x")),
+        );
         let expected_final = lambda_no_box(
             "x",
-            redex(
-                lambda("x'", bound_var("x'")),
-                bound_var("x"),
-            ),
+            bound_var("x"),
         );
 
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
-        assert_eq!(ast, expected);
+        assert_eq!(ast, expected1);
+        assert!(has_changed);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected2);
         assert!(has_changed);
 
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
