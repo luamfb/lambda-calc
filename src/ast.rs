@@ -163,6 +163,7 @@ impl Ast {
                         // symbol table
                         if let Some(ast_ref) = parser.get_symbol(&name) {
                             let mut new_left = ast_ref.clone();
+                            new_left.alpha_convert(lambda_vars_in_use, &mut HashMap::new());
                             new_left.reduced_last = true;
                             let new_ast = Ast::new(Expr::Redex(
                                 Box::new(new_left),
@@ -183,7 +184,7 @@ impl Ast {
                 }
             },
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
-                //lambda_vars_in_use.insert(name.clone());
+                lambda_vars_in_use.insert(name.clone());
 
                 let (new_body, has_changed)
                     = lambda_body.beta_reduce_once_recur(lambda_vars_in_use, parser);
