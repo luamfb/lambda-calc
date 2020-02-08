@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::collections::{HashMap, HashSet};
+use std::io::Read;
 use crate::parser::Parser;
 
 /// The abstract syntax tree constructed from the lambda expression.
@@ -68,6 +69,16 @@ impl Ast {
             }
             if should_print {
                 println!("= {}", self);
+                if parser.step_by_step() {
+                    ::std::io::stdin()
+                        .lock()
+                        .bytes()
+                        .skip_while(
+                            // Probably not portable; can't find a better way to do this.
+                            // Discard all characters until newline is found.
+                            |x| *x.as_ref().expect("failed to read from stdin") != 0xA
+                        ).next();
+                }
             }
         }
     }

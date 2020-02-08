@@ -4,6 +4,7 @@ pub enum Command {
     Help,
     Load,
     Define, // :=, pseudo-command
+    StepByStep,
 }
 
 pub struct CommandClassifier<'a> {
@@ -28,6 +29,13 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
         cmd: Command::Load,
         arg_expected: true,
         description: "parse all lines from a file.",
+    },
+    CommandClassifier {
+        short_name: "s",
+        long_name: "step_by_step",
+        cmd: Command::StepByStep,
+        arg_expected: false,
+        description: "toggle step by step mode, in which the user must press Enter before each reduction step"
     },
 ];
 

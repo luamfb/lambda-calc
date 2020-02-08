@@ -15,12 +15,14 @@ use std::{
 ///
 pub struct Parser {
     symbol_table: HashMap<String, Ast>,
+    step_by_step: bool,
 }
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             symbol_table: HashMap::new(),
+            step_by_step: false,
         }
     }
 
@@ -130,6 +132,11 @@ impl Parser {
         self.symbol_table.insert(name.to_string(), ast);
     }
 
+    /// Return whether step by step mode is on or off.
+    pub fn step_by_step(&self) -> bool {
+        self.step_by_step
+    }
+
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
         match cmd {
             Command::Help => {
@@ -148,6 +155,9 @@ impl Parser {
                 _ => panic!("lexer should have returned an Id as the argument to ':load'"),
             },
             Command::Define => panic!("Command::Define should never be returned by the lexer!"),
+            Command::StepByStep => {
+                self.step_by_step = !self.step_by_step;
+            },
         }
     }
 }
