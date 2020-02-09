@@ -914,6 +914,29 @@ mod tests {
     }
 
     #[test]
+    fn bound_vars_inside_multiple_lambdas() {
+        let tokens = vec![
+            Token::Lambda, Token::Id("f"), Token::Gives,
+            Token::OpenParen,
+            Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("f"),
+            Token::CloseParen,
+            Token::OpenParen,
+            Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("f"),
+            Token::CloseParen,
+        ]; // \f -> (\x -> f) (\x -> f)
+        expr_test(
+            tokens,
+            lambda_no_box(
+                "f",
+                redex(
+                    lambda("x", bound_var("f")),
+                    lambda("x", bound_var("f")),
+                ),
+            ),
+        );
+    }
+
+    #[test]
     fn insert_get_symbol() {
         let mut parser = Parser::new();
         let ast = lambda_no_box("x", bound_var("x"));
