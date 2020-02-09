@@ -60,12 +60,21 @@ impl Ast {
     }
 
     fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Ast {
-        loop {
+        let mut should_quit = false;
+        while !should_quit {
             let pair = self.beta_reduce_once(&mut HashSet::new(), parser);
             self = pair.0;
             let expr_has_changed = pair.1;
             if !expr_has_changed {
-                return self.last_step_beta_reduce(&parser);
+                let (ast, expr_has_changed) = self.last_step_beta_reduce(&parser);
+                self = ast;
+                if !expr_has_changed {
+                    return self;
+                } else {
+                    // mark that we should quit in the next iteration but still
+                    // print if necessary
+                    should_quit = true;
+                }
             }
             if should_print {
                 println!("= {}", self);
@@ -81,24 +90,25 @@ impl Ast {
                 }
             }
         }
+        self
     }
 
     // This function is due to a corner case: if the entire expression
     // is a free variable, look it up from the symbol table.
     //
-    fn last_step_beta_reduce(self, parser: &Parser) -> Ast {
+    fn last_step_beta_reduce(self, parser: &Parser) -> (Ast, bool) {
         match self.expr {
             Expr::Var { name, is_free: true } => {
                 if let Some(ast) = parser.get_symbol(&name) {
                     let mut new_ast = ast.clone();
                     new_ast.reduced_last = true;
-                    new_ast
+                    (new_ast, true)
                 } else {
                     // reconstruct variable
-                    Ast::new(Expr::Var { name, is_free: true })
+                    (Ast::new(Expr::Var { name, is_free: true }), false)
                 }
             },
-            _ => self,
+            _ => (self, false)
         }
     }
 
