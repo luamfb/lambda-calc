@@ -5,7 +5,7 @@ use crate::{
     cmd::Command,
 };
 use std::{
-    collections::{HashSet, HashMap},
+    collections::HashMap,
     io::{BufRead, BufReader},
     fs::File,
 };
@@ -167,7 +167,7 @@ struct LineParser<'a, I>
     where I: Iterator<Item = Token<'a>> + Clone
 {
     token_iter: I,
-    lambda_vars: HashSet<String>,
+    lambda_vars: Vec<String>,
 }
 
 impl<'a, I> LineParser<'a, I>
@@ -176,7 +176,7 @@ impl<'a, I> LineParser<'a, I>
     fn new(token_iter: I) -> LineParser<'a, I> {
         LineParser {
             token_iter,
-            lambda_vars: HashSet::new(),
+            lambda_vars: Vec::new(),
         }
     }
 
@@ -238,12 +238,15 @@ impl<'a, I> LineParser<'a, I>
                     );
                 },
                 Some(Token::Id(s)) => {
-                    let is_free = !self.lambda_vars.contains(s);
+                    let is_free = !self.lambda_vars.iter().any(|x| x == s);
                     queue.push(Ast::new(Expr::Var { name: s.to_string(), is_free, }));
                 },
                 Some(Token::Lambda) => {
-                    queue.push(self.parse_lambda());
-                    self.lambda_vars.clear();
+                    let (ast, var_count) = self.parse_lambda();
+                    queue.push(ast);
+                    for _ in 0..var_count {
+                        self.lambda_vars.pop();
+                    }
                     return finalize_redex(queue);
                 },
                 t @ _ => {
@@ -262,26 +265,34 @@ impl<'a, I> LineParser<'a, I>
     // which is treated as equivalent to
     //  lambda x -> (lambda y -> x)
     //
-    fn parse_lambda(&mut self) -> Ast {
+    // The number returned is the number of lambda variables pushed into
+    // self.lambda_vars.
+    //
+    fn parse_lambda(&mut self) -> (Ast, i32) {
         match self.token_iter.next() {
             Some(Token::Id(name)) => {
-                if self.lambda_vars.contains(name) {
+                if self.lambda_vars.iter().any(|x| x == name) {
                     // Ideally we should do something less drastic than panicking,
                     // e.g. returning None, but that could lead to a non-None
                     // inconsistent expression, which is even worse.
                     //
                     panic!("outer lambda variable cannot appear again as an inner lambda variable");
                 }
-                self.lambda_vars.insert(name.to_string());
-                Ast::new(Expr::LambdaTerm {
+                self.lambda_vars.push(name.to_string());
+
+                let (lambda_body, var_count) = self.parse_lambda();
+                let ast = Ast::new(Expr::LambdaTerm {
                     var_name: name.to_string(),
-                    body: Box::new(self.parse_lambda()),
-                })
+                    body: Box::new(lambda_body),
+                });
+
+                (ast, var_count + 1)
             },
             Some(Token::Gives) => {
                 // finalize lambda term by returning its body.
-                self.parse_ast(Vec::new())
-                    .expect("lambda term can't have empty body")
+                let ast = self.parse_ast(Vec::new())
+                    .expect("lambda term can't have empty body");
+                (ast, 0)
             },
             _ => panic!("this token is not allowed in the head of a lambda term."),
         }
