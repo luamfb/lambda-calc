@@ -1131,7 +1131,8 @@ mod tests {
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
         assert!(!has_changed);
 
-        let ast = ast.last_step_beta_reduce(&parser);
+        let (ast, has_changed) = ast.last_step_beta_reduce(&parser);
+        assert!(has_changed);
         assert_eq!(ast, expected1);
 
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
