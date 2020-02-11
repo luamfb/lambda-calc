@@ -398,11 +398,19 @@ fn get_next_avail_name(name: &str, names_in_use: &HashSet<String>) -> Option<Str
     if !names_in_use.contains(name) {
         return None;
     }
-    let mut new_name = name.to_string();
-    while names_in_use.contains(&new_name) {
-        new_name.push('\'');
+    let (prefix, mut num): (&str, i32) = match name.chars().position(|x: char| x.is_numeric()) {
+        None => (&name, 0),
+        Some(i) => (&name[..i], name[i..].parse::<i32>()
+                    .expect(&format!("failed to convert variable suffix to number: '{}'", &name[i..])))
+    };
+    let mut new_name;
+    loop {
+        num += 1; // start from 1: the var without number suffix was the "0th"
+        new_name = format!("{}{}", prefix, num.to_string());
+        if !names_in_use.contains(&new_name) {
+            return Some(new_name);
+        }
     }
-    Some(new_name)
 }
 
 #[cfg(test)]

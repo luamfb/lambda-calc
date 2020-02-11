@@ -193,7 +193,7 @@ impl<'a> TokenIter<'a> {
 
         for c in rest_of_string.chars() {
             last_char_len = c.len_utf8();
-            if !c.is_alphanumeric() && c != '_' {
+            if !c.is_alphabetic() && c != '_' {
                 break
             }
             name_len += last_char_len;
