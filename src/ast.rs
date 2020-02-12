@@ -814,16 +814,16 @@ mod tests {
             lambda("x", lambda("y", bound_var("x"))),
             lambda("y", bound_var("y"))
         );
-        // should reduce to \y y' -> y' but may reduce to \y y -> y if alpha
+        // should reduce to \y y1 -> y1 but may reduce to \y y -> y if alpha
         // conversion is not being done properly
 
         let expected = lambda_no_box(
             "y",
-            last(lambda("y'", bound_var("y'"))),
+            last(lambda("y1", bound_var("y1"))),
         );
         let expected_final = lambda_no_box(
             "y",
-            lambda("y'", bound_var("y'")),
+            lambda("y1", bound_var("y1")),
         );
         one_reduction_test(ast, expected, expected_final);
     }
@@ -831,16 +831,16 @@ mod tests {
     #[test]
     fn alpha_conversion2() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", lambda("y'", bound_var("x")))),
+            lambda("x", lambda("y", lambda("y1", bound_var("x")))),
             lambda("y", bound_var("y")),
         );
         let expected = lambda_no_box(
             "y",
-            lambda("y'", last(lambda("y''", bound_var("y''"))))
+            lambda("y1", last(lambda("y2", bound_var("y2"))))
         );
         let expected_final = lambda_no_box(
             "y",
-            lambda("y'", lambda("y''", bound_var("y''")))
+            lambda("y1", lambda("y2", bound_var("y2")))
         );
         one_reduction_test(ast, expected, expected_final);
     }
@@ -963,7 +963,7 @@ mod tests {
             lambda("y",
                    lambda("z",
                           redex(
-                              last(lambda("z'", bound_var("z'"))),
+                              last(lambda("z1", bound_var("z1"))),
                               redex(bound_var("y"), bound_var("z")),
                           ),
             )),
@@ -973,9 +973,9 @@ mod tests {
         let expected2 = lambda_no_box(
             "z",
             redex(
-                lambda("z'", bound_var("z'")),
+                lambda("z1", bound_var("z1")),
                 redex(
-                    last(lambda("z''", bound_var("z''"))),
+                    last(lambda("z2", bound_var("z2"))),
                     bound_var("z")
                 ),
             ),
@@ -1205,7 +1205,7 @@ mod tests {
         let expected1 = lambda_no_box(
             "x",
             redex(
-                last(lambda("x'", bound_var("x'"))),
+                last(lambda("x1", bound_var("x1"))),
                 bound_var("x"),
             ),
         );
