@@ -1230,4 +1230,123 @@ mod tests {
         assert_eq!(ast, expected_final);
         assert!(!has_changed);
     }
+
+    #[test]
+    fn simultaneous_alpha_conversions1() {
+        let ast = redex_no_box(
+            lambda("f",
+                   redex(
+                       lambda("g",
+                              lambda("h",
+                                     redex(bound_var("h"), bound_var("g")),
+                       )),
+                       lambda("h",
+                              redex(bound_var("h"), bound_var("f")),
+                       ),
+                   ),
+            ),
+            lambda("h", bound_var("h")),
+        ); // (\f -> (\g h -> h g) (\h -> h f)) (\h -> h)
+
+        let expected1 = redex_no_box(
+           lambda("g",
+                  lambda("h",
+                         redex(bound_var("h"), bound_var("g")),
+           )),
+           lambda("h",
+                  redex(
+                      bound_var("h"),
+                      last(lambda("h1", bound_var("h1"))),
+                  )
+            ),
+        ); // (\g h. h g) (\h. h (\h1. h1))
+
+        let expected2 = lambda_no_box(
+            "h",
+            redex(
+                bound_var("h"),
+                last(lambda("h1",
+                       redex(
+                           bound_var("h1"),
+                           lambda("h2", bound_var("h2")),
+                       )
+                 )),
+            ),
+        ); // \h. h (\h1. h1 (\h2. h2))
+
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected1);
+        assert!(has_changed);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected2);
+        assert!(has_changed);
+    }
+
+    #[test]
+    fn simultaneous_alpha_conversions2() {
+        let ast = redex_no_box(
+            lambda("f",
+                redex(
+                    lambda("g",
+                           lambda("h",
+                                  redex(
+                                      bound_var("h"),
+                                      redex(bound_var("g"), bound_var("f")),
+                                  )
+                    )),
+                    lambda("h",
+                           redex(bound_var("h"), bound_var("f")),
+                    ),
+                ),
+            ),
+            lambda("h", bound_var("h")),
+        ); // (\f. (\g h. h (g f)) (\h. h f)) (\h. h)
+        let expected1 = redex_no_box(
+            lambda("g",
+                   lambda("h",
+                          redex(
+                              bound_var("h"),
+                              redex(
+                                  bound_var("g"),
+                                  last(lambda("h1", bound_var("h1")))
+                          )),
+            )),
+            lambda("h",
+                   redex(
+                       bound_var("h"),
+                       last(lambda("h1", bound_var("h1"))),
+                   ),
+            ),
+        ); // (\g h. h (g (\h1. h1))) (\h. h (\h1. h1))
+        let expected2 = lambda_no_box(
+            "h",
+            redex(
+                bound_var("h"),
+                redex(
+                    last(lambda("h1",
+                                redex(
+                                    bound_var("h1"),
+                                    lambda("h2", bound_var("h2")),
+                                ),
+                    )),
+                    lambda("h1", bound_var("h1")),
+                ),
+            )
+        ); // (\h. h ((\h1. h1 (\h2. h2)) (\h1. h1)))
+
+        // reduction could go on, but we're only interested in these steps
+
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected1);
+        assert!(has_changed);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert_eq!(ast, expected2);
+        assert!(has_changed);
+    }
 }
