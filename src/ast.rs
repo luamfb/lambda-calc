@@ -241,7 +241,7 @@ impl Ast {
         match &mut self.expr {
             Expr::LambdaTerm {var_name: name, body: lambda_body} => {
                 if let Some(new_name) = get_next_avail_name(name, lambda_vars_in_use) {
-                    lambda_vars_in_use.insert(name.clone());
+                    lambda_vars_in_use.insert(new_name.clone());
                     conversions.insert(name.clone(), new_name.clone());
                     *name = new_name;
                 }
