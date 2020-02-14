@@ -301,37 +301,6 @@ impl Ast {
         }
     }
 
-    /*
-    pub fn substitute_symbols_from(&mut self,
-                                   symbol_table: &HashMap<String, Ast>,
-                                   lambda_vars: &mut HashSet<String>) {
-        match &mut self.expr {
-            Expr::Redex(left, right) => {
-                left.substitute_symbols_from(symbol_table, lambda_vars);
-                right.substitute_symbols_from(symbol_table, lambda_vars);
-            },
-            Expr::LambdaTerm { var_name, body: lambda_body } => {
-                lambda_vars.insert(var_name.clone());
-                lambda_body.substitute_symbols_from(symbol_table, lambda_vars);
-                lambda_vars.remove(var_name);
-            },
-            Expr::Var {name, is_free} => if *is_free {
-                match symbol_table.get(name) {
-                    None => return,
-                    Some(ast) => {
-                        let mut new_ast = ast.clone();
-                        {
-                            let mut conversions = HashMap::new();
-                            new_ast.alpha_convert(lambda_vars, &mut conversions);
-                        }
-                        self.expr = new_ast.expr;
-                    }
-                };
-            },
-        }
-    }
-    */
-
     fn actual_fmt(&self, f: &mut Formatter,
                   outer_term_is_lambda: bool) -> fmt::Result {
         if self.reduced_last {
