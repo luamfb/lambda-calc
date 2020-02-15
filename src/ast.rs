@@ -62,6 +62,7 @@ impl Ast {
     fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Ast {
         let last_step_changed;
         let mut printed_once = false;
+        let mut num_steps = 0;
         loop {
             let pair = self.beta_reduce_once(&mut HashSet::new(), parser);
             self = pair.0;
@@ -72,6 +73,7 @@ impl Ast {
                 last_step_changed = expr_has_changed;
                 break;
             }
+            num_steps += 1;
             if should_print && parser.step() {
                 println!("= {}", self);
                 printed_once = true;
@@ -89,6 +91,12 @@ impl Ast {
         }
         if should_print && (!printed_once || last_step_changed) {
             println!("= {}", self);
+        }
+        if last_step_changed {
+            num_steps += 1;
+        }
+        if should_print && parser.count_steps() {
+            println!("{} reduction steps", num_steps);
         }
         self
     }

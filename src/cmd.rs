@@ -6,6 +6,7 @@ pub enum Command {
     Define, // :=, pseudo-command
     Pause,
     Step,
+    CountSteps,
 }
 
 pub struct CommandClassifier<'a> {
@@ -44,6 +45,13 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
         cmd: Command::Step,
         arg_expected: false,
         description: "toggle whether to print each step of beta reduction or only the final result"
+    },
+    CommandClassifier {
+        short_name: "c",
+        long_name: "count",
+        cmd: Command::CountSteps,
+        arg_expected: false,
+        description: "toggle whether to print the number of steps taken, which includes beta reductions and symbol substitutions."
     },
 ];
 

@@ -17,6 +17,7 @@ pub struct Parser {
     symbol_table: HashMap<String, Ast>,
     pause: bool,
     step: bool,
+    count_steps: bool,
 }
 
 impl Parser {
@@ -25,6 +26,7 @@ impl Parser {
             symbol_table: HashMap::new(),
             pause: false,
             step: true,
+            count_steps: false,
         }
     }
 
@@ -164,6 +166,11 @@ impl Parser {
         self.step
     }
 
+    /// Return whether the count step mode is on or off.
+    pub fn count_steps(&self) -> bool {
+        self.count_steps
+    }
+
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
         match cmd {
             Command::Help => {
@@ -186,6 +193,7 @@ impl Parser {
                 self.pause = !self.pause;
             },
             Command::Step => self.step = !self.step,
+            Command::CountSteps => self.count_steps = !self.count_steps,
         }
     }
 }
