@@ -78,7 +78,7 @@ impl Ast {
             }
             if should_print {
                 println!("= {}", self);
-                if parser.step_by_step() {
+                if parser.pause() {
                     ::std::io::stdin()
                         .lock()
                         .bytes()

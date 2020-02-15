@@ -4,7 +4,7 @@ pub enum Command {
     Help,
     Load,
     Define, // :=, pseudo-command
-    StepByStep,
+    Pause,
 }
 
 pub struct CommandClassifier<'a> {
@@ -31,11 +31,11 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
         description: "parse all lines from a file.",
     },
     CommandClassifier {
-        short_name: "s",
-        long_name: "step_by_step",
-        cmd: Command::StepByStep,
+        short_name: "p",
+        long_name: "pause",
+        cmd: Command::Pause,
         arg_expected: false,
-        description: "toggle step by step mode, in which the user must press Enter before each reduction step"
+        description: "toggle pause mode, in which the user must press Enter before each reduction step"
     },
 ];
 

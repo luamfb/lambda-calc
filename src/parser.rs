@@ -15,14 +15,14 @@ use std::{
 ///
 pub struct Parser {
     symbol_table: HashMap<String, Ast>,
-    step_by_step: bool,
+    pause: bool,
 }
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             symbol_table: HashMap::new(),
-            step_by_step: false,
+            pause: false,
         }
     }
 
@@ -153,8 +153,8 @@ impl Parser {
     }
 
     /// Return whether step by step mode is on or off.
-    pub fn step_by_step(&self) -> bool {
-        self.step_by_step
+    pub fn pause(&self) -> bool {
+        self.pause
     }
 
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
@@ -175,8 +175,8 @@ impl Parser {
                 _ => panic!("lexer should have returned an Id as the argument to ':load'"),
             },
             Command::Define => panic!("Command::Define should never be returned by the lexer!"),
-            Command::StepByStep => {
-                self.step_by_step = !self.step_by_step;
+            Command::Pause => {
+                self.pause = !self.pause;
             },
         }
     }
