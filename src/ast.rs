@@ -1318,4 +1318,29 @@ mod tests {
         assert_eq!(ast, expected2);
         assert!(has_changed);
     }
+
+    #[test]
+    fn no_unnecessary_alpha_conversion() {
+        let ast = redex_no_box(
+            lambda("a",
+                   redex(
+                       bound_var("a"),
+                       lambda("b", bound_var("b")),
+                   ),
+            ),
+            lambda("b", bound_var("b")),
+        ); // (\a -> a (\b -> b)) (\b -> b)
+
+        let expected1 = redex_no_box(
+            // might become b1 if unnecessary alpha conversion takes place
+            lambda("b", bound_var("b")),
+            lambda("b", bound_var("b")),
+        );
+
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+    }
 }
