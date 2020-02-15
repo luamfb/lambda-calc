@@ -100,6 +100,26 @@ impl Parser {
     /// assert_eq!(reduced, expected);
     /// ```
     ///
+    /// One must take care when binding an expression with free variables;
+    /// because of the lazy substitution, these variables might misbehave when
+    /// captured, e.g. in
+    ///
+    /// ```
+    /// # use lambda_calc::Parser;
+    /// let mut parser = Parser::new();
+    /// assert_eq!(parser.parse("foo = \\f -> f x"), None);
+    /// let reduced = parser.parse("(\\x -> foo) a")
+    ///     .unwrap()
+    ///     .beta_reduce_quiet(&parser);
+    /// // the "x" in foo's definition is never replaced with "a",
+    /// // because the definition is only substituted later
+    /// let expected = parser.parse("foo")
+    ///     .unwrap()
+    ///     .beta_reduce_quiet(&parser);
+    /// assert_eq!(reduced, expected);
+    /// ```
+    ///
+
     pub fn parse(&mut self, line: &str) -> Option<Ast> {
         let token_iter = TokenIter::new(&line);
         {
