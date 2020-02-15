@@ -236,8 +236,15 @@ impl<'a, I> LineParser<'a, I>
                     let non_redex = ast.beta_reduce_quiet(parser);
                     parser.insert_symbol(name, non_redex);
                 },
-                Expr::Var{name: _, is_free: _} => {
-                    eprintln!("a definition can't bind to a single variable");
+                Expr::Var{name: var_name, is_free, } => {
+                    assert!(is_free);
+                    if let Some(ast) = parser.get_symbol(&var_name) {
+                        let ast = ast.clone();
+                        // bind to the symbol's definition directly
+                        parser.insert_symbol(name, ast);
+                    } else {
+                        eprintln!("a definition can't bind to a single variable (unless it also has a definition)");
+                    }
                 }
             }
         }
@@ -1002,5 +1009,29 @@ mod tests {
             Token::Id("x"), Token::Def, Token::Id("a")
         ];
         def_test("x", def_tokens, None);
+    }
+
+    #[test]
+    fn symbol_alias() {
+        let def1 = vec![
+            Token::Id("f"), Token::Def,
+            Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("x"),
+        ];
+        let def2 = vec![
+            Token::Id("g"), Token::Def, Token::Id("f"),
+        ];
+        let mut parser = Parser::new();
+        assert_eq!(
+            None,
+            LineParser::new(def1.into_iter()).parse(&mut parser)
+        );
+        assert_eq!(
+            None,
+            LineParser::new(def2.into_iter()).parse(&mut parser)
+        );
+        assert_eq!(
+            parser.get_symbol("g"),
+            Some(&lambda_no_box("x", bound_var("x"))),
+        );
     }
 }
