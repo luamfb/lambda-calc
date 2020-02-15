@@ -5,6 +5,7 @@ pub enum Command {
     Load,
     Define, // :=, pseudo-command
     Pause,
+    Step,
 }
 
 pub struct CommandClassifier<'a> {
@@ -36,6 +37,13 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
         cmd: Command::Pause,
         arg_expected: false,
         description: "toggle pause mode, in which the user must press Enter before each reduction step"
+    },
+    CommandClassifier {
+        short_name: "s",
+        long_name: "step",
+        cmd: Command::Step,
+        arg_expected: false,
+        description: "toggle whether to print each step of beta reduction or only the final result"
     },
 ];
 

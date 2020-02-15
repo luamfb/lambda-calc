@@ -60,24 +60,21 @@ impl Ast {
     }
 
     fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Ast {
-        let mut should_quit = false;
-        while !should_quit {
+        let last_step_changed;
+        let mut printed_once = false;
+        loop {
             let pair = self.beta_reduce_once(&mut HashSet::new(), parser);
             self = pair.0;
             let expr_has_changed = pair.1;
             if !expr_has_changed {
                 let (ast, expr_has_changed) = self.last_step_beta_reduce(&parser);
                 self = ast;
-                if !expr_has_changed {
-                    return self;
-                } else {
-                    // mark that we should quit in the next iteration but still
-                    // print if necessary
-                    should_quit = true;
-                }
+                last_step_changed = expr_has_changed;
+                break;
             }
-            if should_print {
+            if should_print && parser.step() {
                 println!("= {}", self);
+                printed_once = true;
                 if parser.pause() {
                     ::std::io::stdin()
                         .lock()
@@ -89,6 +86,9 @@ impl Ast {
                         ).next();
                 }
             }
+        }
+        if should_print && (!printed_once || last_step_changed) {
+            println!("= {}", self);
         }
         self
     }

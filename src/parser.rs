@@ -16,6 +16,7 @@ use std::{
 pub struct Parser {
     symbol_table: HashMap<String, Ast>,
     pause: bool,
+    step: bool,
 }
 
 impl Parser {
@@ -23,6 +24,7 @@ impl Parser {
         Parser {
             symbol_table: HashMap::new(),
             pause: false,
+            step: true,
         }
     }
 
@@ -152,9 +154,14 @@ impl Parser {
         self.symbol_table.insert(name.to_string(), ast);
     }
 
-    /// Return whether step by step mode is on or off.
+    /// Return whether pause mode is on or off.
     pub fn pause(&self) -> bool {
         self.pause
+    }
+
+    /// Return whether step mode is on or off.
+    pub fn step(&self) -> bool {
+        self.step
     }
 
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
@@ -178,6 +185,7 @@ impl Parser {
             Command::Pause => {
                 self.pause = !self.pause;
             },
+            Command::Step => self.step = !self.step,
         }
     }
 }
