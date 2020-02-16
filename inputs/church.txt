@@ -1,0 +1,115 @@
+# Church encoding for numbers, booleans, and lists.
+# See <https://en.wikipedia.org/wiki/Church_encoding>
+#
+
+# useful functions
+id = \x -> x
+const = \x y -> x
+Y = \f -> (\x -> f (x x)) (\x -> f (x x))
+
+# booleans
+true = \x y -> x
+false = \x y -> y
+
+# boolean operations
+not = \b -> b false true
+and = \p q -> p q false
+or  = \p q -> p true q
+
+# pairs
+pair = \x y z -> z x y
+first = \p -> p (\x y -> x)
+second = \p -> p (\x y -> y)
+
+# lists
+#cons = pair
+head = first
+tail = second
+nil = false
+isnil = \l -> l (\h t d -> false) true
+
+# a few hardcoded numbers.
+zero	= \f x -> x
+one     = \f x -> f x
+two  	= \f x -> f (f x)
+three	= \f x -> f (f (f x))
+four	= \f x -> f (f (f (f x)))
+five	= \f x -> f (f (f (f (f x))))
+six	    = \f x -> f (f (f (f (f (f x)))))
+seven	= \f x -> f (f (f (f (f (f (f x))))))
+eight	= \f x -> f (f (f (f (f (f (f (f x)))))))
+nine	= \f x -> f (f (f (f (f (f (f (f (f x))))))))
+
+# arithmetic operations
+succ = \n f x -> f (n f x)
+add = \m n f x -> m f (n f x)
+mul = \m n -> m (add n) zero
+pow = \m n -> n m
+
+# this version requires a lot more reduction steps
+#pred = \n -> first (n (\p -> pair (second p) (succ (second p))) (pair zero zero))
+#
+# NOTE: the free variables do not get properly replaced because of the lazy
+# substitution. Don't use freee vars when defining symbols:
+# they will misbehave if captured.
+#
+#inc = \g h -> h (g f)
+#const_x = \u -> x
+#pred = \n f x -> n inc const_x (\u -> u)
+
+pred = \n f x -> n (\g h -> h (g f)) (\u -> x) (\u -> u)
+
+# another version; needs more reductions
+#inc = \f g h -> h (g f)
+#pred = \n f x -> n (inc f) (const x) id
+
+# The most direct implementation, but needs way too many reductions, e.g.
+#   > minus_direct fifty forty_nine
+#   = (λf x. f x)
+#   2849 reduction steps
+#
+minus_direct = \m n -> (n pred) m
+
+# Another version of minus.
+#
+# Invert the number's associativity, such that i.e. \f x -> f (f (f x))
+# becomes \f x -> (((x f) f) f)
+#
+inv_left = \n f -> n (\y -> y f)
+
+# Receives a number m which has been inverted by inv_left and a non-inverted
+# number n and discards n f's from m, giving an inverted result; e.g.
+#   sub_left (inv_left four) two
+# becomes
+#   (\f x -> x f f).
+#
+# Unfortunately, this function doesn't behave nicely when m < n.
+#
+sub_inv = \m n f x -> m f (n (\a b -> a) x)
+
+# The inverse function of inv_left: it receives an inverted number and returns
+# the non-inverted number.
+#
+inv_right = \n f x -> n (\u v -> u (f v)) (Y (\r a b -> b r a) x) (\a b -> b)
+
+# This version of minus needs WAY less reductions:
+#   > minus fifty forty_nine
+#   = (λf x. f x)
+#   181 reduction steps
+#
+minus = \m n -> inv_right (sub_inv (inv_left m) n)
+
+# comparing numbers.
+isZero = \n -> n (\x -> false) true
+
+# both also needs too many reductions!
+leq = \m n -> isZero (minus_direct m n)
+eq = \m n -> and (leq m n) (leq n m)
+
+# The factorial function using the Y combinator
+fact = \num -> Y (\r n -> (isZero n) one (mul n (r (pred n)))) num
+
+# The factorial function without the Y combinator.
+# This is only possible thanks to the lazy symbol substitution.
+#
+fact_symb = \n -> (isZero n) one (mul n (fact_symb (pred n)))
