@@ -311,9 +311,8 @@ impl Ast {
 
     fn actual_fmt(&self, f: &mut Formatter,
                   outer_term_is_lambda: bool) -> fmt::Result {
-        if self.reduced_last {
-            // ideally we should check if output is actually a tty
-            // (and not e.g. a pipe) before doing this
+        let use_color = self.reduced_last && !f.alternate();
+        if use_color {
             write!(f, "\x1B[32m")?; // green
         }
 
@@ -343,7 +342,11 @@ impl Ast {
                 if outer_term_is_lambda {
                     write!(f, " {}", name)?;
                 } else {
-                    write!(f, "λ{}", name)?;
+                    if f.alternate() {
+                        write!(f, "\\{}", name)?;
+                    } else {
+                        write!(f, "λ{}", name)?;
+                    }
                 }
                 match lambda_body.expr {
                     Expr::LambdaTerm {var_name: _, body: _} => {},
@@ -358,13 +361,16 @@ impl Ast {
             Expr::Var { name, is_free: _ } => write!(f, "{}", name)?,
         }
 
-        if self.reduced_last {
+        if use_color {
             write!(f, "\x1B[0m")?; // undo color selection
         }
         Ok(())
     }
 }
 
+/// If a program will read the output, use the alternate formatter,
+/// which does not use ANSI color escapes or non-ASCII unicode characters.
+///
 impl Display for Ast {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.actual_fmt(f, false)
