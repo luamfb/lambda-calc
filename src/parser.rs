@@ -189,11 +189,9 @@ impl Parser {
                 _ => panic!("lexer should have returned an Id as the argument to ':load'"),
             },
             Command::Define => panic!("Command::Define should never be returned by the lexer!"),
-            Command::Pause => {
-                self.pause = !self.pause;
-            },
-            Command::Step => self.step = !self.step,
-            Command::CountSteps => self.count_steps = !self.count_steps,
+            Command::Pause => handle_bool_cmd(&mut self.pause, arg),
+            Command::Step => handle_bool_cmd(&mut self.step, arg),
+            Command::CountSteps => handle_bool_cmd(&mut self.count_steps, arg),
         }
     }
 }
@@ -403,6 +401,24 @@ fn finalize_redex(mut queue: Vec<Ast>) -> Option<Ast> {
         result = Ast::new(Expr::Redex(Box::new(result), Box::new(expr)));
     }
     Some(result)
+}
+
+fn handle_bool_cmd(val: &mut bool, arg: Option<Token>) {
+    match arg {
+        None => eprintln!("command requires an argument on|off|toggle"),
+        Some(Token::Id(s)) => {
+            if s == "on" {
+                *val = true;
+            } else if s == "off" {
+                *val = false;
+            } else if s == "toggle" {
+                *val = !*val;
+            } else {
+                eprintln!("expected 'on', 'off' or 'toggle', found '{}'", s);
+            }
+        },
+        _ => eprintln!("invalid argument: must be 'on', 'off' or 'toggle'"),
+    }
 }
 
 #[cfg(test)]

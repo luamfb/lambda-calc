@@ -36,22 +36,22 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
         short_name: "p",
         long_name: "pause",
         cmd: Command::Pause,
-        arg_expected: false,
-        description: "toggle pause mode, in which the user must press Enter before each reduction step"
+        arg_expected: true,
+        description: "Whether to wait, before each reduction step, until the user presses Enter."
     },
     CommandClassifier {
         short_name: "s",
         long_name: "step",
         cmd: Command::Step,
-        arg_expected: false,
-        description: "toggle whether to print each step of beta reduction or only the final result"
+        arg_expected: true,
+        description: "Whether to print each step of beta reduction or only the final result."
     },
     CommandClassifier {
         short_name: "c",
         long_name: "count",
         cmd: Command::CountSteps,
-        arg_expected: false,
-        description: "toggle whether to print the number of steps taken, which includes beta reductions and symbol substitutions."
+        arg_expected: true,
+        description: "Whether to print the number of steps taken, which includes beta reductions and symbol substitutions."
     },
 ];
 
