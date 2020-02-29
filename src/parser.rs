@@ -41,7 +41,7 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("a b c d"), parser.parse("(((a b) c) d)"));
+    /// assert_eq!(parser.parse("a b c d", None), parser.parse("(((a b) c) d)", None));
     /// ```
     ///
     /// - The lambda body stretches as far as possible:
@@ -49,14 +49,14 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("lambda x . a b c"), parser.parse("(lambda x . a b c)"));
+    /// assert_eq!(parser.parse("lambda x . a b c", None), parser.parse("(lambda x . a b c)", None));
     /// ```
     ///
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("lambda x . a lambda y . y"),
-    ///     parser.parse("(lambda x . (a (lambda y . y)))"));
+    /// assert_eq!(parser.parse("lambda x . a lambda y . y", None),
+    ///     parser.parse("(lambda x . (a (lambda y . y)))", None));
     /// ```
     ///
     /// - Unnecessary parentheses are ignored:
@@ -64,7 +64,7 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("((((a))))"), parser.parse("a"));
+    /// assert_eq!(parser.parse("((((a))))", None), parser.parse("a", None));
     /// ```
     ///
     /// Additionally,
@@ -74,8 +74,8 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("lambda x y z . x y"),
-    ///     parser.parse("lambda x . lambda y . lambda z . x y"));
+    /// assert_eq!(parser.parse("lambda x y z . x y", None),
+    ///     parser.parse("lambda x . lambda y . lambda z . x y", None));
     /// ```
     ///
     ///
@@ -87,8 +87,8 @@ impl Parser {
     /// ```
     /// # use lambda_calc::{Parser, Ast, ast::Expr};
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("K = lambda x y . x"), None);
-    /// let redex = parser.parse("K a b");
+    /// assert_eq!(parser.parse("K = lambda x y . x", None), None);
+    /// let redex = parser.parse("K a b", None);
     /// // we haven't asked for any beta reduction, so K has not been
     /// // substituted yet
     /// let expected = Ast::new(Expr::Redex(
@@ -111,13 +111,13 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("foo = \\f -> f x"), None);
-    /// let reduced = parser.parse("(\\x -> foo) a")
+    /// assert_eq!(parser.parse("foo = \\f -> f x", None), None);
+    /// let reduced = parser.parse("(\\x -> foo) a", None)
     ///     .unwrap()
     ///     .beta_reduce_quiet(&parser);
     /// // the "x" in foo's definition is never replaced with "a",
     /// // because the definition is only substituted later
-    /// let expected = parser.parse("foo")
+    /// let expected = parser.parse("foo", None)
     ///     .unwrap()
     ///     .beta_reduce_quiet(&parser);
     /// assert_eq!(reduced, expected);
@@ -450,14 +450,14 @@ mod tests {
     #[test]
     fn empty_expr() {
         let mut parser = Parser::new();
-        let expr = LineParser::new(vec![].into_iter()).parse(&mut parser);
+        let expr = LineParser::new(vec![].into_iter(), None).parse(&mut parser);
         assert_eq!(None, expr);
     }
 
     // skeleton for non-empty expressions' tests (not definitions)
     fn expr_test<'a>(tokens: Vec<Token<'a>>, expected: Ast) {
         let mut parser = Parser::new();
-        let ast = LineParser::new(tokens.into_iter()).parse(&mut parser);
+        let ast = LineParser::new(tokens.into_iter(), None).parse(&mut parser);
         assert_eq!(Some(expected), ast);
     }
 
@@ -1011,7 +1011,7 @@ mod tests {
         let mut parser = Parser::new();
         assert_eq!(
             None,
-            LineParser::new(def_tokens.into_iter()).parse(&mut parser)
+            LineParser::new(def_tokens.into_iter(), None).parse(&mut parser)
         );
         let ast = parser.get_symbol(name);
         assert_eq!(expected, ast);
@@ -1047,11 +1047,11 @@ mod tests {
         let mut parser = Parser::new();
         assert_eq!(
             None,
-            LineParser::new(def1.into_iter()).parse(&mut parser)
+            LineParser::new(def1.into_iter(), None).parse(&mut parser)
         );
         assert_eq!(
             None,
-            LineParser::new(def2.into_iter()).parse(&mut parser)
+            LineParser::new(def2.into_iter(), None).parse(&mut parser)
         );
         assert_eq!(
             parser.get_symbol("g"),
