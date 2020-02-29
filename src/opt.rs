@@ -20,25 +20,25 @@ pub fn parse_cmdline_options(parser: &mut Parser) -> bool {
     if arg1 == "-h" || arg1 == "--help" {
         cmd::print_usage();
         return false;
-    } else if arg1 == "-l" || arg1 == "--load" {
-        return load_opt(args, parser);
-    }
-    println!("unknown command-line argument '{}'", arg1);
-    false
-}
-
-fn load_opt(mut args: env::Args, parser: &mut Parser) -> bool {
-    match args.next() {
-        None => {
-            eprintln!("load command requires an argument.");
-            false
-        },
-        Some(s) => {
-            if let Err(e) = parser.parse_file(&s) {
-                println!("failed to load file '{}': {}", s, e);
-                return false;
-            }
-            true
+    } else {
+        if !load_file(&arg1, parser) {
+            return false;
         }
     }
+
+    // everything else is a file to be loaded.
+    for name in args {
+        if !load_file(&name, parser) {
+            return false;
+        }
+    }
+    true
+}
+
+fn load_file(filename: &str, parser: &mut Parser) -> bool {
+    if let Err(e) = parser.parse_file(&filename) {
+        println!("failed to load file '{}': {}", filename, e);
+        return false;
+    }
+    true
 }
