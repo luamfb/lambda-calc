@@ -57,13 +57,23 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
 
 pub fn print_usage() {
     println!(
-"A lambda calculus interpreter.
-See <https://docs.rs/lambda_calc> for details.
+"An untyped lambda calculus interpreter.
+See <https://docs.rs/lambda_calc> for the syntax understood by the parser.
 
-Available commands:"
+Usage:
+<program_name> -h | --help
+\tPrint this message.
+<program_name> [file1] [file2] ...
+\tStart the interactive interpreter, optionally loading the files named
+\tfile1, file2, ... as if by using the :load command.
+<program_name> -n filename
+\tNon-interactive mode: load a single file named filename and print output in
+\ta program-friendly way, which means only ASCII characters and no color.
+
+Interactive commands:"
     );
     for command in COMMAND_CLASSIFIER {
-        println!(":{}, :{}\t{}",
+        println!(":{}, :{}\n\t{}",
                  command.short_name,
                  command.long_name,
                  command.description);
