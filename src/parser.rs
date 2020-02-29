@@ -18,6 +18,7 @@ pub struct Parser {
     pause: bool,
     step: bool,
     count_steps: bool,
+    non_interactive_mode: bool,
 }
 
 impl Parser {
@@ -27,6 +28,7 @@ impl Parser {
             pause: false,
             step: true,
             count_steps: false,
+            non_interactive_mode: false,
         }
     }
 
@@ -139,8 +141,14 @@ impl Parser {
     /// Parse all lines in filename.
     pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
         let reader = BufReader::new(File::open(filename)?);
+
         for (line_num, line) in reader.lines().enumerate() {
-            self.parse(&line?, Some(format!("file '{}', line {}: ", filename, line_num + 1)));
+            let file_info = format!("file '{}', line {}: ", filename, line_num + 1);
+            if let Some(ast) = self.parse(&line?, Some(file_info)) {
+                if self.non_interactive_mode {
+                    println!("{:#}", ast.beta_reduce_quiet(&self));
+                }
+            }
         }
         Ok(())
     }
@@ -169,6 +177,11 @@ impl Parser {
     /// Return whether the count step mode is on or off.
     pub fn count_steps(&self) -> bool {
         self.count_steps
+    }
+
+    /// Turn on non-interactive mode.
+    pub fn set_non_interactive_mode(&mut self) {
+        self.non_interactive_mode = true;
     }
 
     fn run_command(&mut self, cmd: Command, arg: Option<Token>) {
