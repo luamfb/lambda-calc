@@ -124,7 +124,7 @@ impl Parser {
     /// ```
     ///
 
-    pub fn parse(&mut self, line: &str, line_num: Option<usize>) -> Option<Ast> {
+    pub fn parse(&mut self, line: &str, file_info: Option<String>) -> Option<Ast> {
         let token_iter = TokenIter::new(&line);
         {
             let mut new_token_iter = token_iter.clone();
@@ -133,14 +133,14 @@ impl Parser {
                 return None;
             }
         }
-        LineParser::new(token_iter, line_num).parse(self)
+        LineParser::new(token_iter, file_info).parse(self)
     }
 
     /// Parse all lines in filename.
     pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
         let reader = BufReader::new(File::open(filename)?);
         for (line_num, line) in reader.lines().enumerate() {
-            self.parse(&line?, Some(line_num + 1));
+            self.parse(&line?, Some(format!("file '{}', line {}: ", filename, line_num + 1)));
         }
         Ok(())
     }
@@ -203,17 +203,17 @@ struct LineParser<'a, I>
     where I: Iterator<Item = Token<'a>> + Clone
 {
     token_iter: I,
-    line_num: Option<usize>,
+    file_info: Option<String>,
     lambda_vars: Vec<String>,
 }
 
 impl<'a, I> LineParser<'a, I>
     where I: Iterator<Item = Token<'a>> + Clone
 {
-    fn new(token_iter: I, line_num: Option<usize>) -> LineParser<'a, I> {
+    fn new(token_iter: I, file_info: Option<String>) -> LineParser<'a, I> {
         LineParser {
             token_iter,
-            line_num,
+            file_info,
             lambda_vars: Vec::new(),
         }
     }
@@ -387,8 +387,8 @@ impl<'a, I> LineParser<'a, I>
     }
 
     fn print_err_msg(&self, s: &str) {
-        if let Some(i) = self.line_num {
-            eprint!("line {}: ", i);
+        if let Some(fs) = &self.file_info {
+            eprint!("{}", fs);
         }
         eprintln!("{}", s);
     }
