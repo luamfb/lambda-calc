@@ -124,7 +124,7 @@ impl Parser {
     /// ```
     ///
 
-    pub fn parse(&mut self, line: &str) -> Option<Ast> {
+    pub fn parse(&mut self, line: &str, line_num: Option<usize>) -> Option<Ast> {
         let token_iter = TokenIter::new(&line);
         {
             let mut new_token_iter = token_iter.clone();
@@ -133,14 +133,14 @@ impl Parser {
                 return None;
             }
         }
-        LineParser::new(token_iter).parse(self)
+        LineParser::new(token_iter, line_num).parse(self)
     }
 
     /// Parse all lines in filename.
     pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
         let reader = BufReader::new(File::open(filename)?);
-        for line in reader.lines() {
-            self.parse(&line?);
+        for (line_num, line) in reader.lines().enumerate() {
+            self.parse(&line?, Some(line_num + 1));
         }
         Ok(())
     }
@@ -203,15 +203,17 @@ struct LineParser<'a, I>
     where I: Iterator<Item = Token<'a>> + Clone
 {
     token_iter: I,
+    line_num: Option<usize>,
     lambda_vars: Vec<String>,
 }
 
 impl<'a, I> LineParser<'a, I>
     where I: Iterator<Item = Token<'a>> + Clone
 {
-    fn new(token_iter: I) -> LineParser<'a, I> {
+    fn new(token_iter: I, line_num: Option<usize>) -> LineParser<'a, I> {
         LineParser {
             token_iter,
+            line_num,
             lambda_vars: Vec::new(),
         }
     }
@@ -243,7 +245,7 @@ impl<'a, I> LineParser<'a, I>
             _ => panic!("expected definition, but 2nd token is not '=' or ':='"),
         }
         match self.parse_ast(Vec::new()) {
-            None => eprintln!("a definition can't bind to an empty expression"),
+            None => self.print_err_msg("a definition can't bind to an empty expression"),
             Some(ast) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
                     parser.insert_symbol(name,  ast);
@@ -259,7 +261,7 @@ impl<'a, I> LineParser<'a, I>
                         // bind to the symbol's definition directly
                         parser.insert_symbol(name, ast);
                     } else {
-                        eprintln!("a definition can't bind to a single variable (unless it also has a definition)");
+                        self.print_err_msg("a definition can't bind to a single variable (unless it also has a definition)");
                     }
                 }
             }
@@ -358,16 +360,15 @@ impl<'a, I> LineParser<'a, I>
         for (i, token) in token_iter.enumerate() {
             match token {
                 Token::Invalid => {
-                    eprintln!("token number {} is invalid", i);
+                    self.print_err_msg(&format!("token number {} is invalid", i));
                     return false;
                 },
                 Token::OpenParen => paren_count += 1,
                 Token::CloseParen => paren_count -= 1,
                 Token::Def => {
                     if !is_def {
-                        eprintln!(
-                            "wrong syntax for definition, should be <var> = <expr> (token {})",
-                            i
+                        self.print_err_msg(
+                            &format!("wrong syntax for definition, should be <var> = <expr> (token {})", i)
                         );
                         return false;
                     }
@@ -376,13 +377,20 @@ impl<'a, I> LineParser<'a, I>
             }
         }
         if paren_count > 0 {
-            eprintln!("{} unclosed parentheses", paren_count);
+            self.print_err_msg(&format!("{} unclosed parentheses", paren_count));
             return false;
         } else if paren_count < 0 {
-            eprintln!("{} extra closing parentheses", -paren_count);
+            self.print_err_msg(&format!("{} extra closing parentheses", -paren_count));
             return false;
         }
         true
+    }
+
+    fn print_err_msg(&self, s: &str) {
+        if let Some(i) = self.line_num {
+            eprint!("line {}: ", i);
+        }
+        eprintln!("{}", s);
     }
 }
 
