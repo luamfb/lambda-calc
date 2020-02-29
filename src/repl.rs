@@ -133,7 +133,7 @@ pub fn read_eval_print_loop(mut parser: Parser) {
                 break;
             }
             Err(err) => {
-                println!("error: {:?}", err);
+                eprintln!("error: {:?}", err);
                 break;
             },
         };

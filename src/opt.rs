@@ -48,7 +48,7 @@ pub fn parse_cmdline_options(parser: &mut Parser) -> bool {
 
 fn load_file(filename: &str, parser: &mut Parser) -> bool {
     if let Err(e) = parser.parse_file(&filename) {
-        println!("failed to load file '{}': {}", filename, e);
+        eprintln!("failed to load file '{}': {}", filename, e);
         return false;
     }
     true
