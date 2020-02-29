@@ -93,11 +93,52 @@ sub_inv = \m n f x -> m f (n (\a b -> a) x)
 inv_right = \n f x -> n (\u v -> u (f v)) (Y (\r a b -> b r a) x) (\a b -> b)
 
 # This version of minus needs WAY less reductions:
-#   > minus fifty forty_nine
+#   > minus_defective fifty forty_nine
 #   = (λf x. f x)
 #   181 reduction steps
 #
-minus = \m n -> inv_right (sub_inv (inv_left m) n)
+#   > minus_defective thousand nine_hundred
+#   = ...
+#   3427 reduction steps
+#
+# ...but doesn't work when m < n.
+#
+minus_defective = \m n -> inv_right (sub_inv (inv_left m) n)
+
+# Yet another version of minus.
+
+# NOTE: must be called with one argument that replaces f to become a real list.
+num_to_list = \n f -> n (\a b -> b f a) nil
+
+# Runs through both lists one element at a time until one of them ends,
+# returning the tail of the other one. This result contains the number in
+# list form.
+# This is made of two chained expressions from the general form:
+#   process_list = \list -> list (\hd tl nc -> head_and_tail_clause) nil_clause
+# (hd and tl are the list's head and tail, and nc is nil_clause.)
+#
+# Since we treat both the lists in the same way, the result is actually
+# abs(m - n). We could change it to give an empty list instead of l_two when
+# l_one ends, but I decided to keep it that way.
+#
+# this recursion could be rewritten with the Y combinator
+sub_list = \l_one l_two -> l_one (\hd_one tl_one nc_one -> l_two (\hd_two tl_two nc_two -> sub_list tl_one tl_two) l_one) l_two
+
+# this recursion could be rewritten with the Y combinator
+list_to_num = \list f x -> list (\hd tl nc -> hd (list_to_num tl f x)) x
+
+# With the numbers we're testing, takes an average amount of reductions between
+# the two previous implementations:
+#
+#   > minus_list fifty forty_nine
+#   = (λf x. f x)
+#   679 reduction steps
+#
+#   > minus_list thousand nine_hundred
+#   = ...
+#   12633 reduction steps
+#
+minus_list = \m n f x -> (list_to_num (sub_list ((num_to_list m) f) ((num_to_list n) f)) f x)
 
 # comparing numbers.
 isZero = \n -> n (\x -> false) true
