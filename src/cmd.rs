@@ -66,9 +66,10 @@ Usage:
 <program_name> [file1] [file2] ...
 \tStart the interactive interpreter, optionally loading the files named
 \tfile1, file2, ... as if by using the :load command.
-<program_name> -n filename
-\tNon-interactive mode: load a single file named filename and print output in
-\ta program-friendly way, which means only ASCII characters and no color.
+<program_name> -n [filename]
+\tNon-interactive mode: load a single file named filename,
+\tor stdin if filename is omitted, and print output in a program-friendly way,
+\twhich means only ASCII characters and no color.
 
 Interactive commands:"
     );
