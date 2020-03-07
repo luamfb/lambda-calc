@@ -217,7 +217,9 @@ impl Parser {
                 _ => panic!("lexer should have returned an Id as the argument to ':load'"),
             },
             Command::Define => panic!("Command::Define should never be returned by the lexer!"),
-            Command::Pause => handle_bool_cmd(&mut self.pause, arg),
+            Command::Pause => if !self.non_interactive_mode {
+                handle_bool_cmd(&mut self.pause, arg);
+            },
             Command::Step => handle_bool_cmd(&mut self.step, arg),
             Command::CountSteps => handle_bool_cmd(&mut self.count_steps, arg),
         }
