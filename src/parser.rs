@@ -6,7 +6,7 @@ use crate::{
 };
 use std::{
     collections::HashMap,
-    io::{BufRead, BufReader},
+    io::{self, BufRead, BufReader},
     fs::File,
 };
 
@@ -138,12 +138,27 @@ impl Parser {
         LineParser::new(token_iter, file_info).parse(self)
     }
 
-    /// Parse all lines in filename.
-    pub fn parse_file(&mut self, filename: &str) -> std::io::Result<()> {
-        let reader = BufReader::new(File::open(filename)?);
+    /// Parse all lines in the file named filename, or stdin if filename is None.
+    pub fn parse_file(&mut self, filename: Option<String>) -> io::Result<()> {
+        match filename {
+            None => {
+                let stdin = io::stdin();
+                let reader = stdin.lock();
+                self.parse_file_with_reader(reader, "stdin")?;
+            },
+            Some(s) => {
+                let reader = BufReader::new(File::open(&s)?);
+                self.parse_file_with_reader(reader, &format!("file '{}'", s))?;
+            },
+        }
+        Ok(())
+    }
 
+    fn parse_file_with_reader<R: BufRead>(&mut self,
+                                          reader: R,
+                                          file_info_prefix: &str) -> io::Result<()> {
         for (line_num, line) in reader.lines().enumerate() {
-            let file_info = format!("file '{}', line {}: ", filename, line_num + 1);
+            let file_info = format!("{}, line {}: ", file_info_prefix, line_num + 1);
             if let Some(ast) = self.parse(&line?, Some(file_info)) {
                 if self.non_interactive_mode {
                     println!("{:#}", ast.beta_reduce_quiet(&self));
@@ -195,7 +210,7 @@ impl Parser {
                     return;
                 },
                 Some(Token::Id(filename)) => {
-                    if let Err(err) = self.parse_file(filename) {
+                    if let Err(err) = self.parse_file(Some(filename.to_string())) {
                         eprintln!("error parsing file {}: '{}'", filename, err);
                     }
                 },

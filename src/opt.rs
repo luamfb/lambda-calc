@@ -21,34 +21,31 @@ pub fn parse_cmdline_options(parser: &mut Parser) -> bool {
         cmd::print_usage();
         return false;
     } else if arg1 == "-n" || arg1 == "--no-interactive" {
-        let filename = match args.next() {
-            None => {
-                eprintln!("option '{}' requires a file name", arg1);
-                return false;
-            },
-            Some(s) => s,
-        };
         parser.set_non_interactive_mode();
-        load_file(&filename, parser);
+        load_file(args.next(), parser);
         return false; // never start interactive prompt when -n is used
     } else {
-        if !load_file(&arg1, parser) {
+        if !load_file(Some(arg1), parser) {
             return false;
         }
     }
 
     // everything else is a file to be loaded.
     for name in args {
-        if !load_file(&name, parser) {
+        if !load_file(Some(name), parser) {
             return false;
         }
     }
     true
 }
 
-fn load_file(filename: &str, parser: &mut Parser) -> bool {
-    if let Err(e) = parser.parse_file(&filename) {
-        eprintln!("failed to load file '{}': {}", filename, e);
+fn load_file(filename: Option<String>, parser: &mut Parser) -> bool {
+    let name = match filename {
+        None => "stdin".to_string(),
+        Some(ref s) => s.clone(),
+    };
+    if let Err(e) = parser.parse_file(filename) {
+        eprintln!("failed to load file '{}': {}", &name, e);
         return false;
     }
     true
