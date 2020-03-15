@@ -19,7 +19,10 @@ use rustyline::{
 };
 use rustyline_derive::Helper;
 
-use crate::parser::Parser;
+use crate::{
+    parser::Parser,
+    lexer,
+};
 
 #[derive(Helper)]
 struct RustylineHelper {
@@ -120,7 +123,17 @@ pub fn read_eval_print_loop(mut parser: Parser) {
 
     loop {
         match rl.readline("> ") {
-            Ok(line) => {
+            Ok(mut line) => {
+                while lexer::strip_whitespace_and_line_cont(&mut line) {
+                    match rl.readline("& ") {
+                        Ok(new_line) => line.push_str(&new_line),
+                        Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
+                        Err(err) => {
+                            eprintln!("error: {:?}", err);
+                            break;
+                        },
+                    };
+                }
                 rl.add_history_entry(line.as_str());
                 match parser.parse(&line, None) {
                     Ok(ast) => if let Some(expr) = ast {

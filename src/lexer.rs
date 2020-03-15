@@ -13,6 +13,25 @@ pub enum Token<'a> {
     Command(Command),
 }
 
+/// Removes whitespace and line continuation token (if any) from the end
+/// of a line, returning whether there was a line continuation token.
+///
+pub fn strip_whitespace_and_line_cont(line: &mut String) -> bool {
+    while let Some(c) = line.chars().next_back() {
+        if !c.is_whitespace() {
+            break;
+        }
+        line.pop();
+    }
+    match line.chars().next_back() {
+        Some('&') => {
+            line.pop();
+            true
+        },
+        _ => false,
+    }
+}
+
 /// An iterator over the tokens of a string. Used by Parser.
 ///
 /// These tokens are all considered the same:

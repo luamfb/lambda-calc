@@ -1,5 +1,5 @@
 use crate::{
-    lexer::{Token, TokenIter},
+    lexer::{self, Token, TokenIter},
     ast::{Ast, Expr},
     cmd,
     cmd::Command,
@@ -163,13 +163,47 @@ impl Parser {
     fn parse_file_with_reader<R: BufRead>(&mut self,
                                           reader: R,
                                           file_info_prefix: &str) -> Result<(), String> {
-        for (line_num, line) in reader.lines().enumerate() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => return Err(e.to_string()),
+
+        let mut line_num_beg = 0;
+        let mut line_num_end;
+        let mut lines = reader.lines();
+        'read_expr: loop {
+            let mut expr = match lines.next() {
+                None => break 'read_expr,
+                Some(line) => {
+                    line_num_beg += 1;
+                    match line {
+                        Ok(l) => l,
+                        Err(e) => return Err(e.to_string()),
+                    }
+                },
             };
-            let file_info = format!("{}, line {}: ", file_info_prefix, line_num + 1);
-            if let Some(ast) = self.parse(&line, Some(file_info))? {
+
+            line_num_end = line_num_beg;
+
+            while lexer::strip_whitespace_and_line_cont(&mut expr) {
+                let line = match lines.next() {
+                    None => return Err(format!("{}: line continuation not allowed in file's last line",
+                                               file_info_prefix)),
+                    Some(line) => {
+                        line_num_end += 1;
+                        match line {
+                            Ok(l) => l,
+                            Err(e) => return Err(e.to_string()),
+                        }
+                    }
+                };
+                expr.push_str(&line);
+            }
+
+            let file_info = if line_num_end > line_num_beg {
+                format!("{}, lines {}-{}: ",
+                        file_info_prefix, line_num_beg, line_num_end)
+            } else {
+                format!("{}, line {}: ", file_info_prefix, line_num_beg)
+            };
+
+            if let Some(ast) = self.parse(&expr, Some(file_info))? {
                 if self.non_interactive_mode {
                     println!("{:#}", ast.beta_reduce_quiet(&self));
                 }
