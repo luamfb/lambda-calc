@@ -126,20 +126,20 @@ impl Parser {
     /// ```
     ///
 
-    pub fn parse(&mut self, line: &str, file_info: Option<String>) -> Option<Ast> {
+    pub fn parse(&mut self, line: &str, file_info: Option<String>) -> Result<Option<Ast>, String> {
         let token_iter = TokenIter::new(&line);
         {
             let mut new_token_iter = token_iter.clone();
             if let Some(Token::Command(cmd)) = new_token_iter.next() {
                 self.run_command(cmd, new_token_iter.next());
-                return None;
+                return Ok(None);
             }
         }
         LineParser::new(token_iter, file_info).parse(self)
     }
 
     /// Parse all lines in the file named filename, or stdin if filename is None.
-    pub fn parse_file(&mut self, filename: Option<String>) -> io::Result<()> {
+    pub fn parse_file(&mut self, filename: Option<String>) -> Result<(), String> {
         match filename {
             None => {
                 let stdin = io::stdin();
@@ -147,7 +147,11 @@ impl Parser {
                 self.parse_file_with_reader(reader, "stdin")?;
             },
             Some(s) => {
-                let reader = BufReader::new(File::open(&s)?);
+                let file = match File::open(&s) {
+                    Ok(file) => file,
+                    Err(e) => return Err(e.to_string()),
+                };
+                let reader = BufReader::new(file);
                 self.parse_file_with_reader(reader, &format!("file '{}'", s))?;
             },
         }
@@ -156,10 +160,14 @@ impl Parser {
 
     fn parse_file_with_reader<R: BufRead>(&mut self,
                                           reader: R,
-                                          file_info_prefix: &str) -> io::Result<()> {
+                                          file_info_prefix: &str) -> Result<(), String> {
         for (line_num, line) in reader.lines().enumerate() {
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => return Err(e.to_string()),
+            };
             let file_info = format!("{}, line {}: ", file_info_prefix, line_num + 1);
-            if let Some(ast) = self.parse(&line?, Some(file_info)) {
+            if let Some(ast) = self.parse(&line, Some(file_info))? {
                 if self.non_interactive_mode {
                     println!("{:#}", ast.beta_reduce_quiet(&self));
                 }
@@ -246,20 +254,18 @@ impl<'a, I> LineParser<'a, I>
         }
     }
 
-    fn parse(&mut self, parser: &mut Parser) -> Option<Ast> {
+    fn parse(&mut self, parser: &mut Parser) -> Result<Option<Ast>, String> {
         if let None = self.token_iter.clone().next() {
-            return None; // empty line, ignore.
+            return Ok(None); // empty line, ignore.
         }
         let is_def = self.check_is_def();
-        if !self.sanity_checks(is_def) {
-            return None;
-        }
+        self.sanity_checks(is_def)?;
         if is_def {
             self.parse_def(parser);
-            None
+            Ok(None)
         } else {
             let ast = self.parse_ast(Vec::new())?;
-            Some(ast)
+            Ok(ast)
         }
     }
 
@@ -273,8 +279,9 @@ impl<'a, I> LineParser<'a, I>
             _ => panic!("expected definition, but 2nd token is not '=' or ':='"),
         }
         match self.parse_ast(Vec::new()) {
-            None => self.print_err_msg("a definition can't bind to an empty expression"),
-            Some(ast) => match ast.expr_ref() {
+            Err(e) => self.print_err_msg(&e),
+            Ok(None) => self.print_err_msg("a definition can't bind to an empty expression"),
+            Ok(Some(ast)) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
                     parser.insert_symbol(name,  ast);
                 },
@@ -298,36 +305,32 @@ impl<'a, I> LineParser<'a, I>
 
     // Our grammar is not LR(1) (and may not be context-free either),
     // so we parse by hand.
-    fn parse_ast(&mut self, mut queue: Vec<Ast>) -> Option<Ast> {
+    fn parse_ast(&mut self, mut queue: Vec<Ast>) -> Result<Option<Ast>, String> {
         loop {
             match self.token_iter.next() {
                 None | Some(Token::CloseParen) => {
-                    return finalize_redex(queue);
+                    return Ok(finalize_redex(queue));
                 },
                 Some(Token::OpenParen) => {
-                    queue.push(
-                        self.parse_ast(Vec::new())
-                        .expect("null expression after open paren")
-                    );
+                    let ast = match self.parse_ast(Vec::new())? {
+                        None => return Err("null expression after open paren".to_string()),
+                        Some(x) => x,
+                    };
+                    queue.push(ast);
                 },
                 Some(Token::Id(s)) => {
                     let is_free = !self.lambda_vars.iter().any(|x| x == s);
                     queue.push(Ast::new(Expr::Var { name: s.to_string(), is_free, }));
                 },
                 Some(Token::Lambda) => {
-                    let (ast, var_count) = self.parse_lambda();
+                    let (ast, var_count) = self.parse_lambda()?;
                     queue.push(ast);
                     for _ in 0..var_count {
                         self.lambda_vars.pop();
                     }
-                    return finalize_redex(queue);
+                    return Ok(finalize_redex(queue));
                 },
-                t @ _ => {
-                    panic!(format!(
-                        "syntax error, token '{:?}'; should've been handled by sanity_checks()!",
-                        t
-                    ));
-                },
+                t @ _ => return Err(format!("unexpected token '{:?}'", t)),
             }
         }
     }
@@ -341,33 +344,31 @@ impl<'a, I> LineParser<'a, I>
     // The number returned is the number of lambda variables pushed into
     // self.lambda_vars.
     //
-    fn parse_lambda(&mut self) -> (Ast, i32) {
+    fn parse_lambda(&mut self) -> Result<(Ast, i32), String> {
         match self.token_iter.next() {
             Some(Token::Id(name)) => {
                 if self.lambda_vars.iter().any(|x| x == name) {
-                    // Ideally we should do something less drastic than panicking,
-                    // e.g. returning None, but that could lead to a non-None
-                    // inconsistent expression, which is even worse.
-                    //
-                    panic!("outer lambda variable cannot appear again as an inner lambda variable");
+                    return Err(format!("variable name '{}' is already in use by an inner lambda term", name));
                 }
                 self.lambda_vars.push(name.to_string());
 
-                let (lambda_body, var_count) = self.parse_lambda();
+                let (lambda_body, var_count) = self.parse_lambda()?;
                 let ast = Ast::new(Expr::LambdaTerm {
                     var_name: name.to_string(),
                     body: Box::new(lambda_body),
                 });
 
-                (ast, var_count + 1)
+                Ok((ast, var_count + 1))
             },
             Some(Token::Gives) => {
                 // finalize lambda term by returning its body.
-                let ast = self.parse_ast(Vec::new())
-                    .expect("lambda term can't have empty body");
-                (ast, 0)
+                let ast = match self.parse_ast(Vec::new())? {
+                    None => return Err("lambda term can't have empty body".to_string()),
+                    Some(x) => x,
+                };
+                Ok((ast, 0))
             },
-            _ => panic!("this token is not allowed in the head of a lambda term."),
+            t @ _ => Err(format!("token {:?} is not allowed in the head of a lambda term", t)),
         }
     }
 
@@ -381,37 +382,31 @@ impl<'a, I> LineParser<'a, I>
         false
     }
 
-    fn sanity_checks(&self, is_def: bool) -> bool {
+    fn sanity_checks(&self, is_def: bool) -> Result<(), String> {
         let mut paren_count:i32 = 0;
         let token_iter = self.token_iter.clone();
 
         for (i, token) in token_iter.enumerate() {
             match token {
                 Token::Invalid => {
-                    self.print_err_msg(&format!("token number {} is invalid", i));
-                    return false;
+                    return Err(format!("token '{:?}' is invalid", token));
                 },
                 Token::OpenParen => paren_count += 1,
                 Token::CloseParen => paren_count -= 1,
                 Token::Def => {
                     if !is_def {
-                        self.print_err_msg(
-                            &format!("wrong syntax for definition, should be <var> = <expr> (token {})", i)
-                        );
-                        return false;
+                        return Err(format!("wrong syntax for definition, should be <var> = <expr> (token {})", i));
                     }
                 },
                 _ => {},
             }
         }
         if paren_count > 0 {
-            self.print_err_msg(&format!("{} unclosed parentheses", paren_count));
-            return false;
+            return Err(format!("{} unclosed parentheses", paren_count));
         } else if paren_count < 0 {
-            self.print_err_msg(&format!("{} extra closing parentheses", -paren_count));
-            return false;
+            return Err(format!("{} extra closing parentheses", -paren_count));
         }
-        true
+        Ok(())
     }
 
     fn print_err_msg(&self, s: &str) {

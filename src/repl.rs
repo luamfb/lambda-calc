@@ -122,9 +122,12 @@ pub fn read_eval_print_loop(mut parser: Parser) {
         match rl.readline("> ") {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                if let Some(expr) = parser.parse(&line, None) {
-                    expr.beta_reduce_print(&mut parser);
-                }
+                match parser.parse(&line, None) {
+                    Ok(ast) => if let Some(expr) = ast {
+                        expr.beta_reduce_print(&mut parser);
+                    },
+                    Err(e) => eprintln!("syntax error: {}", e),
+                };
             },
             Err(ReadlineError::Interrupted) => {
                 break;
