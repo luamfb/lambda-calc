@@ -3,7 +3,7 @@ use crate::cmd::Command;
 /// Tokens understood by the parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token<'a> {
-    Invalid,
+    Invalid(char),
     Id(&'a str),
     Def,
     Gives,
@@ -87,7 +87,7 @@ impl<'a> Iterator for TokenIter<'a> {
                             Some(Token::Command(cmd))
                         }
                     },
-                    None => Some(Token::Invalid),
+                    None => Some(Token::Invalid(first_char)),
                 };
             } else if first_char == '#' {
                 // comment; skip to the end of line.
@@ -152,15 +152,15 @@ impl<'a> TokenIter<'a> {
             panic!("TokenIter.next(): rest_of_string is empty");
         }
 
-        let (name_len, last_char_len) = self.get_next_word_and_last_char_len();
+        let (name_len, last_char) = self.get_next_word_and_last_char();
 
         if name_len == 0 {
             // we must increment position here too, otherwise we'll yield
             // the same invalid token forever.
             // Note that each invalid token we yield has 1 char only.
             //
-            self.pos += last_char_len;
-            Token::Invalid
+            self.pos += last_char.len_utf8();
+            Token::Invalid(last_char)
         } else {
             self.pos += name_len;
             Token::Id(&rest_of_string[0..name_len])
@@ -174,7 +174,7 @@ impl<'a> TokenIter<'a> {
             return Some(Command::Define); // ":="
         }
 
-        let (name_len, _) = self.get_next_word_and_last_char_len();
+        let (name_len, _) = self.get_next_word_and_last_char();
         let name = &rest_of_string[0..name_len];
         for class in crate::cmd::COMMAND_CLASSIFIER {
             if name == class.short_name || name == class.long_name {
@@ -186,19 +186,19 @@ impl<'a> TokenIter<'a> {
         None
     }
 
-    fn get_next_word_and_last_char_len(&self) -> (usize, usize) {
+    fn get_next_word_and_last_char(&self) -> (usize, char) {
         let rest_of_string = self.rest_of_string();
         let mut name_len = 0;
-        let mut last_char_len = 0;
+        let mut last_char:char = '\0';
 
         for c in rest_of_string.chars() {
-            last_char_len = c.len_utf8();
+            last_char = c;
             if !c.is_alphabetic() && c != '_' {
                 break
             }
-            name_len += last_char_len;
+            name_len += c.len_utf8();
         }
-        (name_len, last_char_len)
+        (name_len, last_char)
     }
 }
 

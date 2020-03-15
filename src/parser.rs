@@ -390,8 +390,8 @@ impl<'a, I> LineParser<'a, I>
 
         for (i, token) in token_iter.enumerate() {
             match token {
-                Token::Invalid => {
-                    return Err(format!("token '{:?}' is invalid", token));
+                Token::Invalid(c) => {
+                    return Err(format!("token {:?} is invalid", c));
                 },
                 Token::OpenParen => paren_count += 1,
                 Token::CloseParen => paren_count -= 1,
