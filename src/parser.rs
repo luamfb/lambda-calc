@@ -281,8 +281,8 @@ impl<'a, I> LineParser<'a, I>
             _ => panic!("expected definition, but 2nd token is not '=' or ':='"),
         }
         match self.parse_ast(Vec::new()) {
-            Err(e) => self.print_err_msg(&e),
-            Ok(None) => self.print_err_msg("a definition can't bind to an empty expression"),
+            Err(e) => self.print_syntax_err(&e),
+            Ok(None) => self.print_syntax_err("a definition can't bind to an empty expression"),
             Ok(Some(ast)) => match ast.expr_ref() {
                 Expr::LambdaTerm { var_name: _, body: _ } => {
                     parser.insert_symbol(name,  ast);
@@ -298,7 +298,7 @@ impl<'a, I> LineParser<'a, I>
                         // bind to the symbol's definition directly
                         parser.insert_symbol(name, ast);
                     } else {
-                        self.print_err_msg("a definition can't bind to a single variable (unless it also has a definition)");
+                        self.print_syntax_err("a definition can't bind to a single variable (unless it also has a definition)");
                     }
                 }
             }
@@ -332,7 +332,7 @@ impl<'a, I> LineParser<'a, I>
                     }
                     return Ok(finalize_redex(queue));
                 },
-                t @ _ => return Err(format!("unexpected token '{:?}'", t)),
+                Some(t) => return Err(format!("unexpected token '{:?}'", t)),
             }
         }
     }
@@ -370,7 +370,8 @@ impl<'a, I> LineParser<'a, I>
                 };
                 Ok((ast, 0))
             },
-            t @ _ => Err(format!("token {:?} is not allowed in the head of a lambda term", t)),
+            Some(t) => Err(format!("token {:?} is not allowed in lambda term's head", t)),
+            None => Err(format!("unfinished lambda term head")),
         }
     }
 
@@ -411,11 +412,11 @@ impl<'a, I> LineParser<'a, I>
         Ok(())
     }
 
-    fn print_err_msg(&self, s: &str) {
+    fn print_syntax_err(&self, s: &str) {
         if let Some(fs) = &self.file_info {
             eprint!("{}", fs);
         }
-        eprintln!("{}", s);
+        eprintln!("syntax error: {}", s);
     }
 }
 
