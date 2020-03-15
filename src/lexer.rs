@@ -169,7 +169,7 @@ impl<'a> TokenIter<'a> {
 
     fn get_command(&mut self) -> Option<Command> {
         let rest_of_string = self.rest_of_string();
-        if rest_of_string.chars().next().unwrap() == '=' {
+        if let Some('=') = rest_of_string.chars().next() {
             self.pos += 1;
             return Some(Command::Define); // ":="
         }
