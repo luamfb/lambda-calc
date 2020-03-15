@@ -89,8 +89,8 @@ impl Parser {
     /// ```
     /// # use lambda_calc::{Parser, Ast, ast::Expr};
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("K = lambda x y . x", None), None);
-    /// let redex = parser.parse("K a b", None);
+    /// assert_eq!(parser.parse("K = lambda x y . x", None), Ok(None));
+    /// let redex = parser.parse("K a b", None).unwrap();
     /// // we haven't asked for any beta reduction, so K has not been
     /// // substituted yet
     /// let expected = Ast::new(Expr::Redex(
@@ -113,13 +113,15 @@ impl Parser {
     /// ```
     /// # use lambda_calc::Parser;
     /// let mut parser = Parser::new();
-    /// assert_eq!(parser.parse("foo = \\f -> f x", None), None);
+    /// assert_eq!(parser.parse("foo = \\f -> f x", None), Ok(None));
     /// let reduced = parser.parse("(\\x -> foo) a", None)
+    ///     .unwrap()
     ///     .unwrap()
     ///     .beta_reduce_quiet(&parser);
     /// // the "x" in foo's definition is never replaced with "a",
     /// // because the definition is only substituted later
     /// let expected = parser.parse("foo", None)
+    ///     .unwrap()
     ///     .unwrap()
     ///     .beta_reduce_quiet(&parser);
     /// assert_eq!(reduced, expected);
@@ -492,14 +494,14 @@ mod tests {
     fn empty_expr() {
         let mut parser = Parser::new();
         let expr = LineParser::new(vec![].into_iter(), None).parse(&mut parser);
-        assert_eq!(None, expr);
+        assert_eq!(Ok(None), expr);
     }
 
     // skeleton for non-empty expressions' tests (not definitions)
     fn expr_test<'a>(tokens: Vec<Token<'a>>, expected: Ast) {
         let mut parser = Parser::new();
         let ast = LineParser::new(tokens.into_iter(), None).parse(&mut parser);
-        assert_eq!(Some(expected), ast);
+        assert_eq!(Ok(Some(expected)), ast);
     }
 
     #[test]
@@ -1051,7 +1053,7 @@ mod tests {
     fn def_test<'a>(name: &str, def_tokens: Vec<Token<'a>>, expected: Option<&Ast>) {
         let mut parser = Parser::new();
         assert_eq!(
-            None,
+            Ok(None),
             LineParser::new(def_tokens.into_iter(), None).parse(&mut parser)
         );
         let ast = parser.get_symbol(name);
@@ -1087,11 +1089,11 @@ mod tests {
         ];
         let mut parser = Parser::new();
         assert_eq!(
-            None,
+            Ok(None),
             LineParser::new(def1.into_iter(), None).parse(&mut parser)
         );
         assert_eq!(
-            None,
+            Ok(None),
             LineParser::new(def2.into_iter(), None).parse(&mut parser)
         );
         assert_eq!(

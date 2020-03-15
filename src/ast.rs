@@ -44,6 +44,7 @@ impl Ast {
     /// let mut parser = Parser::new();
     /// let redex = parser
     ///     .parse("(lambda x . a) ((lambda y . y y) (lambda y . y y))", None)
+    ///     .unwrap()
     ///     .unwrap();
     /// let non_redex = redex.beta_reduce_print(&parser);
     /// assert_eq!(non_redex, Ast::new(Expr::Var{name: "a".to_string(), is_free: true}));
