@@ -40,12 +40,12 @@ pub fn parse_cmdline_options(parser: &mut Parser) -> bool {
 }
 
 fn load_file(filename: Option<String>, parser: &mut Parser) -> bool {
-    let name = match filename {
+    /*let name = match filename {
         None => "stdin".to_string(),
         Some(ref s) => s.clone(),
-    };
+    };*/
     if let Err(e) = parser.parse_file(filename) {
-        eprintln!("failed to load file '{}': {}", &name, e);
+        eprintln!("{}", e);
         return false;
     }
     true

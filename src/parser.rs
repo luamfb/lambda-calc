@@ -426,24 +426,32 @@ impl<'a, I> LineParser<'a, I>
         for (i, token) in token_iter.enumerate() {
             match token {
                 Token::Invalid(c) => {
-                    return Err(format!("token {:?} is invalid", c));
+                    return Err(self.prepend_file_info(format!("token {:?} is invalid", c)));
                 },
                 Token::OpenParen => paren_count += 1,
                 Token::CloseParen => paren_count -= 1,
                 Token::Def => {
                     if !is_def {
-                        return Err(format!("wrong syntax for definition, should be <var> = <expr> (token {})", i));
+                        return Err(self.prepend_file_info(format!("wrong syntax for definition, should be <var> = <expr> (token {})", i)));
                     }
                 },
                 _ => {},
             }
         }
         if paren_count > 0 {
-            return Err(format!("{} unclosed parentheses", paren_count));
+            return Err(self.prepend_file_info(format!("{} unclosed parentheses", paren_count)));
         } else if paren_count < 0 {
-            return Err(format!("{} extra closing parentheses", -paren_count));
+            return Err(self.prepend_file_info(format!("{} extra closing parentheses", -paren_count)));
         }
         Ok(())
+    }
+
+    fn prepend_file_info(&self, s: String) -> String {
+        if let Some(fs) = &self.file_info {
+            format!("{} {}", fs, s)
+        } else {
+            s
+        }
     }
 
     fn print_syntax_err(&self, s: &str) {
