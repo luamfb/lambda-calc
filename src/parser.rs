@@ -208,6 +208,8 @@ impl Parser {
                     println!("{:#}", ast.beta_reduce_quiet(&self));
                 }
             }
+
+            line_num_beg = line_num_end;
         }
         Ok(())
     }
