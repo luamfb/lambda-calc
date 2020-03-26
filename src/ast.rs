@@ -2,6 +2,12 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
+
+use signal_hook::{
+    iterator::Signals,
+    SIGINT,
+};
+
 use crate::parser::Parser;
 
 /// The abstract syntax tree constructed from the lambda expression.
@@ -47,23 +53,33 @@ impl Ast {
     ///     .unwrap()
     ///     .unwrap();
     /// let non_redex = redex.beta_reduce_print(&parser);
-    /// assert_eq!(non_redex, Ast::new(Expr::Var{name: "a".to_string(), is_free: true}));
+    /// assert_eq!(non_redex, Some(Ast::new(Expr::Var{name: "a".to_string(), is_free: true})));
     /// ```
     ///
     /// This function does not attempt to predict infinite loops.
-    pub fn beta_reduce_print(self, parser: &Parser) -> Ast {
+    pub fn beta_reduce_print(self, parser: &Parser) -> Option<Ast> {
         self.beta_reduce(parser, true)
     }
 
     /// Identical to beta_reduce_print() but doesn't print anything.
-    pub fn beta_reduce_quiet(self, parser: &Parser) -> Ast {
+    pub fn beta_reduce_quiet(self, parser: &Parser) -> Option<Ast> {
         self.beta_reduce(parser, false)
     }
 
-    fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Ast {
+    /// Returns None if interrupted (with CTRL-C)
+    fn beta_reduce(mut self, parser: &Parser, should_print: bool) -> Option<Ast> {
         let last_step_changed;
         let mut printed_once = false;
         let mut num_steps = 0;
+
+        let signals = match Signals::new(&[SIGINT]) {
+            Ok(sig) => Some(sig),
+            Err(e) => {
+                eprintln!("failed to register SIGINT hook: {}", e);
+                None
+            },
+        };
+
         loop {
             let pair = self.beta_reduce_once(&mut HashSet::new(), parser);
             self = pair.0;
@@ -89,6 +105,13 @@ impl Ast {
                         ).next();
                 }
             }
+            if let Some(ref sig) = signals {
+                for signal in sig.pending() {
+                    if signal == SIGINT {
+                        return None;
+                    }
+                }
+            }
         }
         if should_print && (!printed_once || last_step_changed) {
             println!("= {}", self);
@@ -99,7 +122,7 @@ impl Ast {
         if should_print && parser.count_steps() {
             println!("{} reduction steps", num_steps);
         }
-        self
+        Some(self)
     }
 
     // This function is due to a corner case: if the entire expression

@@ -102,7 +102,7 @@ impl Parser {
     /// )); // ((K a) b)
     /// assert_eq!(redex, Some(expected));
     /// let reduced = redex.unwrap().beta_reduce_quiet(&parser);
-    /// let expected = Ast::new(Expr::Var { name: "a".to_string(), is_free: true });
+    /// let expected = Some(Ast::new(Expr::Var { name: "a".to_string(), is_free: true }));
     /// assert_eq!(reduced, expected);
     /// ```
     ///
@@ -205,7 +205,9 @@ impl Parser {
 
             if let Some(ast) = self.parse(&expr, Some(file_info))? {
                 if self.non_interactive_mode {
-                    println!("{:#}", ast.beta_reduce_quiet(&self));
+                    if let Some(ast) = ast.beta_reduce_quiet(&self) {
+                        println!("{:#}", ast);
+                    }
                 }
             }
 
@@ -324,8 +326,9 @@ impl<'a, I> LineParser<'a, I>
                     parser.insert_symbol(name,  ast);
                 },
                 Expr::Redex(_,_) => {
-                    let non_redex = ast.beta_reduce_quiet(parser);
-                    parser.insert_symbol(name, non_redex);
+                    if let Some(non_redex) = ast.beta_reduce_quiet(parser) {
+                        parser.insert_symbol(name, non_redex);
+                    }
                 },
                 Expr::Var{name: var_name, is_free, } => {
                     assert!(is_free);
