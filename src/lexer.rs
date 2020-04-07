@@ -344,4 +344,15 @@ mod tests {
         assert_eq!(iter.next(), None);
     }
 
+    #[test]
+    fn strict_var() {
+        let s = "\\!x -> x";
+        let mut iter = TokenIter::new(s);
+        assert_eq!(iter.next(), Some(Token::Lambda));
+        assert_eq!(iter.next(), Some(Token::Strict));
+        assert_eq!(iter.next(), Some(Token::Id("x")));
+        assert_eq!(iter.next(), Some(Token::Gives));
+        assert_eq!(iter.next(), Some(Token::Id("x")));
+        assert_eq!(iter.next(), None);
+    }
 }

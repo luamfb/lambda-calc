@@ -1097,6 +1097,78 @@ mod tests {
     }
 
     #[test]
+    fn single_strict_var_singlevar_lambda() {
+        let tokens = vec![
+            Token::Lambda, Token::Strict, Token::Id("x"),
+            Token::Gives,
+            Token::Id("x")
+        ]; // \!x -> x
+        expr_test(
+            tokens,
+            lambda_no_box("x", true, bound_var("x"))
+        );
+    }
+
+    #[test]
+    fn single_strict_var_multivar_lambda1() {
+        let tokens = vec![
+            Token::Lambda, Token::Strict, Token::Id("x"), Token::Id("y"),
+            Token::Gives,
+            Token::Id("x"), Token::Id("y")
+        ]; // \!x y -> x y
+        expr_test(
+            tokens,
+            lambda_no_box(
+                "x", true,
+                lambda(
+                    "y", false,
+                    redex(bound_var("x"), bound_var("y"))
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn single_strict_var_multivar_lambda2() {
+        let tokens = vec![
+            Token::Lambda, Token::Id("x"), Token::Strict, Token::Id("y"),
+            Token::Gives,
+            Token::Id("x"), Token::Id("y")
+        ]; // \x !y -> x y
+        expr_test(
+            tokens,
+            lambda_no_box(
+                "x", false,
+                lambda(
+                    "y", true,
+                    redex(bound_var("x"), bound_var("y"))
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn multi_strict_var_multivar_lambda() {
+        let tokens = vec![
+            Token::Lambda, Token::Strict, Token::Id("x"),
+            Token::Id("y"),
+            Token::Strict, Token::Id("z"),
+            Token::Gives,
+            Token::Id("z")
+        ]; // \!x y !z -> z
+        expr_test(
+            tokens,
+            lambda_no_box(
+                "x", true,
+                lambda(
+                    "y", false,
+                    lambda("z", true, bound_var("z"))
+                )
+            )
+        );
+    }
+
+    #[test]
     fn insert_get_symbol() {
         let mut parser = Parser::new();
         let ast = lambda_no_box("x", false, bound_var("x"));
@@ -1156,6 +1228,4 @@ mod tests {
             Some(&lambda_no_box("x", false, bound_var("x"))),
         );
     }
-
-    //TODO: some tests with strict!
 }

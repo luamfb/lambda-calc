@@ -1100,6 +1100,80 @@ mod tests {
     }
 
     #[test]
+    fn strict_var_usual_reduction() {
+        let ast = redex_no_box(
+            lambda("x", true, bound_var("x")),
+            free_var("a"),
+        );
+        let expected1 = last_no_box(free_var_no_box("a"));
+        let expected_final = free_var_no_box("a");
+
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(expected1, ast);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(expected_final, ast);
+    }
+
+    #[test]
+    fn strict_var_eval_unused_arg() {
+        let ast = redex_no_box(
+            lambda("x", true, free_var("a")),
+            redex(
+                lambda("y", false, bound_var("y")),
+                free_var("b"),
+            ),
+        );
+        let expected1 = redex_no_box(
+            lambda("x", true, free_var("a")),
+            last(free_var("b")),
+        );
+        let expected2 = last_no_box(free_var_no_box("a"));
+        let expected_final = free_var_no_box("a");
+
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(expected1, ast);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(expected2, ast);
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(!has_changed);
+        assert_eq!(expected_final, ast);
+    }
+
+    #[test]
+    fn strict_val_infinite_loop() {
+        let ast = redex_no_box(
+            lambda("x", true, free_var("a")),
+            redex(
+                lambda("y", false, bound_var("y")),
+                lambda("y", false, bound_var("y")),
+            ),
+        );
+        let expected = redex_no_box(
+            lambda("x", true, free_var("a")),
+            last(redex(
+                    lambda("y", false, bound_var("y")),
+                    lambda("y", false, bound_var("y")),
+            )),
+        );
+        let parser = Parser::new();
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(expected, ast);
+    }
+
+    #[test]
     fn def_replaced_in_free_lambda_var() {
         let mut parser = Parser::new();
         parser.insert_symbol("I", lambda_no_box("x", false, bound_var("x")));
@@ -1379,8 +1453,6 @@ mod tests {
         assert_eq!(ast, expected2);
         assert!(has_changed);
     }
-
-    // TODO: some tests with strict!
 
     /*
      * commented out since unnecessary alpha conversions do not lead to
