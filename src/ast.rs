@@ -195,10 +195,21 @@ impl Ast {
             Expr::Redex(left, mut right) => {
                 match left.expr {
                     Expr::LambdaTerm {var_name, var_strict, body: mut lambda_body} => {
-                        // evaluate the argument before replacing, if needed
+                        // if the variable is marked as strict, try to eagerly
+                        // evaluate its argument before replacing
+                        //
                         if var_strict {
-                            *right = right.beta_reduce(&parser, true)
-                                .expect("interrupted!"); //FIXME maybe we should return an Option here too?
+                            let (new_right, has_changed) =
+                                right.beta_reduce_once_recur(&mut HashSet::new(), parser);
+                            *right = new_right;
+                            if has_changed {
+                                let lambda_term = Ast::new(Expr::LambdaTerm{
+                                    var_name,
+                                    var_strict,
+                                    body: lambda_body
+                                });
+                                return (Ast::new(Expr::Redex(Box::new(lambda_term), right)), true);
+                            }
                         }
                         // note that we don't include this lambda's var name in
                         // lambda_vars_in_use, since it's the variable that will
