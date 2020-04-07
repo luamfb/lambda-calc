@@ -517,9 +517,10 @@ mod tests {
             is_free: false,
         })
     }
-    fn lambda_no_box(var_name: &str, body: Box<Ast>) -> Ast {
+    fn lambda_no_box(var_name: &str, var_strict: bool, body: Box<Ast>) -> Ast {
         Ast::new(Expr::LambdaTerm {
             var_name: var_name.to_string(),
+            var_strict,
             body,
         })
     }
@@ -535,8 +536,8 @@ mod tests {
     fn bound_var(name: &str) -> Box<Ast> {
         Box::new(bound_var_no_box(name))
     }
-    fn lambda(var_name: &str, body: Box<Ast>) -> Box<Ast> {
-        Box::new(lambda_no_box(var_name, body))
+    fn lambda(var_name: &str, var_strict: bool, body: Box<Ast>) -> Box<Ast> {
+        Box::new(lambda_no_box(var_name, var_strict, body))
     }
     fn redex(left: Box<Ast>, right: Box<Ast>) -> Box<Ast> {
         Box::new(redex_no_box(left, right))
@@ -643,7 +644,7 @@ mod tests {
         ]; // lambda x . x
         expr_test(
             tokens,
-            lambda_no_box("x", bound_var("x"))
+            lambda_no_box("x", false, bound_var("x"))
         );
     }
 
@@ -658,7 +659,9 @@ mod tests {
 
         expr_test(
             tokens,
-            lambda_no_box("x", lambda("y", lambda("z", free_var("a"))))
+            lambda_no_box("x", false,
+                          lambda("y", false,
+                                 lambda("z", false, free_var("a"))))
         );
     }
 
@@ -690,7 +693,7 @@ mod tests {
         ]; // lambda x . (x a)
         expr_test(
             tokens,
-            lambda_no_box("x", redex(bound_var("x"), free_var("a")))
+            lambda_no_box("x", false, redex(bound_var("x"), free_var("a")))
         );
     }
 
@@ -711,9 +714,9 @@ mod tests {
         expr_test(
             tokens,
             lambda_no_box(
-                "x",
-                lambda("y",
-                       lambda("z",
+                "x", false,
+                lambda("y", false,
+                       lambda("z", false,
                               redex(
                                   redex(bound_var("x"), bound_var("y")),
                                   bound_var("z")
@@ -744,13 +747,13 @@ mod tests {
         expr_test(
             tokens,
             lambda_no_box(
-                "x",
+                "x", false,
                 redex(
                     bound_var("x"),
-                    lambda("y",
+                    lambda("y", false,
                            redex(
                                bound_var("x"),
-                               lambda("z", bound_var("x"))
+                               lambda("z", false, bound_var("x"))
                            )
                     )
                 )
@@ -768,7 +771,7 @@ mod tests {
             tokens,
             redex_no_box(
                 free_var("a"),
-                lambda("x", bound_var("x"))
+                lambda("x", false, bound_var("x"))
             ),
         );
     }
@@ -827,7 +830,7 @@ mod tests {
             tokens,
             redex_no_box(
                 redex(
-                    lambda("x", bound_var("x")),
+                    lambda("x", false, bound_var("x")),
                     free_var("a"),
                 ),
                 free_var("b"),
@@ -893,7 +896,7 @@ mod tests {
         expr_test(
             tokens,
             lambda_no_box(
-                "x",
+                "x", false,
                 redex(
                     redex(free_var("a"), free_var("b")),
                     free_var("c")
@@ -913,7 +916,7 @@ mod tests {
         expr_test(
             tokens,
             redex_no_box(
-                lambda("x", bound_var("x")),
+                lambda("x", false, bound_var("x")),
                 free_var("x")
             ),
         );
@@ -936,8 +939,8 @@ mod tests {
             tokens,
             redex_no_box(
                 redex(
-                    lambda("x",
-                           lambda("y",
+                    lambda("x", false,
+                           lambda("y", false,
                                   redex(bound_var("x"), bound_var("y"))
                            )
                     ),
@@ -962,7 +965,7 @@ mod tests {
             redex_no_box(
                 redex(
                     free_var("a"),
-                    lambda("x", bound_var("x")),
+                    lambda("x", false, bound_var("x")),
                 ),
                 free_var("b")
             ),
@@ -983,7 +986,7 @@ mod tests {
             redex_no_box(
                 redex(
                     free_var("a"),
-                    lambda("x", bound_var("x")),
+                    lambda("x", false, bound_var("x")),
                 ),
                 free_var("b"),
             ),
@@ -1007,7 +1010,7 @@ mod tests {
                 redex(
                     redex(
                         redex(free_var("a"), free_var("b")),
-                        lambda("x", bound_var("x")),
+                        lambda("x", false, bound_var("x")),
                     ),
                     free_var("c"),
                 ),
@@ -1033,10 +1036,10 @@ mod tests {
             tokens,
             redex_no_box(
                 redex(
-                    lambda("x", bound_var("x")),
-                    lambda("x", bound_var("x")),
+                    lambda("x", false, bound_var("x")),
+                    lambda("x", false, bound_var("x")),
                 ),
-                lambda("x", bound_var("x")),
+                lambda("x", false, bound_var("x")),
             ),
         );
     }
@@ -1061,7 +1064,7 @@ mod tests {
                 redex(
                     redex(
                         free_var("a"),
-                        lambda("x", bound_var("x")),
+                        lambda("x", false, bound_var("x")),
                     ),
                     free_var("b"),
                 ),
@@ -1084,10 +1087,10 @@ mod tests {
         expr_test(
             tokens,
             lambda_no_box(
-                "f",
+                "f", false,
                 redex(
-                    lambda("x", bound_var("f")),
-                    lambda("x", bound_var("f")),
+                    lambda("x", false, bound_var("f")),
+                    lambda("x", false, bound_var("f")),
                 ),
             ),
         );
@@ -1096,7 +1099,7 @@ mod tests {
     #[test]
     fn insert_get_symbol() {
         let mut parser = Parser::new();
-        let ast = lambda_no_box("x", bound_var("x"));
+        let ast = lambda_no_box("x", false, bound_var("x"));
         parser.insert_symbol("I", ast.clone());
         assert_eq!(parser.get_symbol("I"), Some(&ast));
     }
@@ -1118,7 +1121,7 @@ mod tests {
             Token::Id("I"), Token::Def,
             Token::Lambda, Token::Id("x"), Token::Gives, Token::Id("x")
         ];
-        let expected = lambda_no_box("x", bound_var("x"));
+        let expected = lambda_no_box("x", false, bound_var("x"));
         def_test("I", def_tokens, Some(&expected));
     }
 
@@ -1150,7 +1153,7 @@ mod tests {
         );
         assert_eq!(
             parser.get_symbol("g"),
-            Some(&lambda_no_box("x", bound_var("x"))),
+            Some(&lambda_no_box("x", false, bound_var("x"))),
         );
     }
 

@@ -447,9 +447,10 @@ mod tests {
             is_free: false,
         })
     }
-    fn lambda_no_box(var_name: &str, body: Box<Ast>) -> Ast {
+    fn lambda_no_box(var_name: &str, var_strict: bool, body: Box<Ast>) -> Ast {
         Ast::new(Expr::LambdaTerm {
             var_name: var_name.to_string(),
+            var_strict,
             body,
         })
     }
@@ -465,8 +466,8 @@ mod tests {
     fn bound_var(name: &str) -> Box<Ast> {
         Box::new(bound_var_no_box(name))
     }
-    fn lambda(var_name: &str, body: Box<Ast>) -> Box<Ast> {
-        Box::new(lambda_no_box(var_name, body))
+    fn lambda(var_name: &str, var_strict: bool, body: Box<Ast>) -> Box<Ast> {
+        Box::new(lambda_no_box(var_name, var_strict, body))
     }
     fn redex(left: Box<Ast>, right: Box<Ast>) -> Box<Ast> {
         Box::new(redex_no_box(left, right))
@@ -527,15 +528,15 @@ mod tests {
 
     #[test]
     fn not_redex2() {
-        let ast = lambda_no_box("x", bound_var("x"));
+        let ast = lambda_no_box("x", false, bound_var("x"));
         zero_reductions_test(ast);
     }
 
     #[test]
     fn not_redex3() {
         let ast = lambda_no_box(
-            "x",
-            lambda("y", redex(bound_var("x"), bound_var("x")))
+            "x", false,
+            lambda("y", false, redex(bound_var("x"), bound_var("x")))
         );
         zero_reductions_test(ast);
     }
@@ -567,7 +568,7 @@ mod tests {
     #[test]
     fn single_bound_var() {
         let ast = redex_no_box(
-            lambda("x", bound_var("x")),
+            lambda("x", false, bound_var("x")),
             free_var("a")
         );
         let expected = last_no_box(free_var_no_box("a"));
@@ -578,7 +579,7 @@ mod tests {
     #[test]
     fn multiple_bound_vars() {
         let ast = redex_no_box(
-            lambda("x", redex(
+            lambda("x", false, redex(
                     redex(bound_var("x"), bound_var("x")),
                     bound_var("x")
             )), free_var("a")
@@ -597,7 +598,7 @@ mod tests {
     #[test]
     fn one_bound_some_free_vars() {
         let ast = redex_no_box(
-            lambda("x", redex(
+            lambda("x", false, redex(
                     redex(free_var("a"), bound_var("x")),
                     free_var("b")
             )), free_var("c")
@@ -616,18 +617,18 @@ mod tests {
     #[test]
     fn two_lambdas_redex() {
         let ast = redex_no_box(
-            lambda("x", bound_var("x")),
-            lambda("y", bound_var("y")),
+            lambda("x", false, bound_var("x")),
+            lambda("y", false, bound_var("y")),
         );
-        let expected = last_no_box(lambda_no_box("y", bound_var("y")));
-        let expected_final = lambda_no_box("y", bound_var("y"));
+        let expected = last_no_box(lambda_no_box("y", false, bound_var("y")));
+        let expected_final = lambda_no_box("y", false, bound_var("y"));
         one_reduction_test(ast, expected, expected_final);
     }
 
     #[test]
     fn constant_lambda() {
         let ast = redex_no_box(
-            lambda("x", free_var("a")),
+            lambda("x", false, free_var("a")),
             free_var("b"),
         );
         let expected = free_var_no_box("a");
@@ -638,11 +639,14 @@ mod tests {
     #[test]
     fn nested_lambdas() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", redex(bound_var("x"), bound_var("y")))),
+            lambda("x", false,
+                   lambda("y", false, redex(bound_var("x"), bound_var("y")))),
             free_var("a"),
         );
-        let expected = lambda_no_box("y", redex(last(free_var("a")), bound_var("y")));
-        let expected_final = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
+        let expected = lambda_no_box("y", false,
+                                     redex(last(free_var("a")), bound_var("y")));
+        let expected_final = lambda_no_box("y", false,
+                                           redex(free_var("a"), bound_var("y")));
         one_reduction_test(ast, expected, expected_final);
     }
 
@@ -650,14 +654,14 @@ mod tests {
     fn nested_lambdas_multilevel_subst() {
         // (lambda x . x a (lambda y . x y a (lambda z . x y z a))) b
         let ast = redex_no_box(
-            lambda("x", redex(
+            lambda("x", false, redex(
                     redex(bound_var("x"), free_var("a")),
-                    lambda("y", redex(
+                    lambda("y", false, redex(
                             redex(
                                 redex(bound_var("x"), bound_var("y")),
                                 free_var("a")
                             ),
-                            lambda("z", redex(
+                            lambda("z", false, redex(
                                        redex(
                                            redex(bound_var("x"), bound_var("y")),
                                            bound_var("z")
@@ -670,9 +674,9 @@ mod tests {
         );
         let expected = redex_no_box(
             redex(last(free_var("b")), free_var("a")),
-            lambda("y", redex(
+            lambda("y", false, redex(
                     redex(redex(last(free_var("b")), bound_var("y")), free_var("a")),
-                    lambda("z", redex(
+                    lambda("z", false, redex(
                                redex(
                                    redex(last(free_var("b")), bound_var("y")),
                                    bound_var("z"),
@@ -683,9 +687,9 @@ mod tests {
         );
         let expected_final = redex_no_box(
             redex(free_var("b"), free_var("a")),
-            lambda("y", redex(
+            lambda("y", false, redex(
                     redex(redex(free_var("b"), bound_var("y")), free_var("a")),
-                    lambda("z", redex(
+                    lambda("z", false, redex(
                                redex(
                                    redex(free_var("b"), bound_var("y")),
                                    bound_var("z"),
@@ -700,12 +704,12 @@ mod tests {
     #[test]
     fn reduces_to_itself() {
         let ast = redex_no_box(
-            lambda("x", redex(bound_var("x"), bound_var("x"))),
-            lambda("x", redex(bound_var("x"), bound_var("x"))),
+            lambda("x", false, redex(bound_var("x"), bound_var("x"))),
+            lambda("x", false, redex(bound_var("x"), bound_var("x"))),
         );
         let expected = redex_no_box(
-            last(lambda("x", redex(bound_var("x"), bound_var("x")))),
-            last(lambda("x", redex(bound_var("x"), bound_var("x")))),
+            last(lambda("x", false, redex(bound_var("x"), bound_var("x")))),
+            last(lambda("x", false, redex(bound_var("x"), bound_var("x")))),
         );
         let parser = Parser::new();
 
@@ -717,11 +721,11 @@ mod tests {
     #[test]
     fn two_stage_normal_order() {
         let ast = redex_no_box(
-            lambda("x", bound_var("x")),
-            redex(lambda("y", bound_var("y")), free_var("a"))
+            lambda("x", false, bound_var("x")),
+            redex(lambda("y", false, bound_var("y")), free_var("a"))
         );
         let expected1 = last_no_box(redex_no_box(
-            lambda("y", bound_var("y")),
+            lambda("y", false, bound_var("y")),
             free_var("a")
         ));
         let expected2 = last_no_box(free_var_no_box("a"));
@@ -733,15 +737,15 @@ mod tests {
     #[test]
     fn two_stage_produced_redex() {
         let ast = redex_no_box(
-            lambda("x", redex(bound_var("x"), bound_var("x"))),
-            lambda("y", bound_var("y")),
+            lambda("x", false, redex(bound_var("x"), bound_var("x"))),
+            lambda("y", false, bound_var("y")),
         );
         let expected1 = redex_no_box(
-            last(lambda("y", bound_var("y"))),
-            last(lambda("y", bound_var("y"))),
+            last(lambda("y", false, bound_var("y"))),
+            last(lambda("y", false, bound_var("y"))),
         );
-        let expected2 = last_no_box(lambda_no_box("y", bound_var("y")));
-        let expected_final = lambda_no_box("y", bound_var("y"));
+        let expected2 = last_no_box(lambda_no_box("y", false, bound_var("y")));
+        let expected_final = lambda_no_box("y", false, bound_var("y"));
 
         two_reduction_test(ast, expected1, expected2, expected_final);
     }
@@ -749,10 +753,10 @@ mod tests {
     #[test]
     fn mandatory_normal_order() {
         let ast = redex_no_box(
-            lambda("x", free_var("a")),
+            lambda("x", false, free_var("a")),
             redex(
-                lambda("x", redex(bound_var("x"), bound_var("x"))),
-                lambda("x", redex(bound_var("x"), bound_var("x"))),
+                lambda("x", false, redex(bound_var("x"), bound_var("x"))),
+                lambda("x", false, redex(bound_var("x"), bound_var("x"))),
             ),
         );
         let expected = free_var_no_box("a");
@@ -764,11 +768,11 @@ mod tests {
     #[test]
     fn reduction_inside_lambda_body() {
         let ast = lambda_no_box(
-            "x",
-            redex(lambda("a", bound_var("a")), bound_var("x"))
+            "x", false,
+            redex(lambda("a", false, bound_var("a")), bound_var("x"))
         );
-        let expected = lambda_no_box("x", last(bound_var("x")));
-        let expected_final = lambda_no_box("x", bound_var("x"));
+        let expected = lambda_no_box("x", false, last(bound_var("x")));
+        let expected_final = lambda_no_box("x", false, bound_var("x"));
 
         one_reduction_test(ast, expected, expected_final);
     }
@@ -776,11 +780,11 @@ mod tests {
     #[test]
     fn capture_free_var1() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", bound_var("x"))),
+            lambda("x", false, lambda("y", false, bound_var("x"))),
             free_var("y")
         );
-        let expected = lambda_no_box("y", last(bound_var("y")));
-        let expected_final = lambda_no_box("y", bound_var("y"));
+        let expected = lambda_no_box("y", false, last(bound_var("y")));
+        let expected_final = lambda_no_box("y", false, bound_var("y"));
 
         one_reduction_test(ast, expected, expected_final);
     }
@@ -788,11 +792,13 @@ mod tests {
     #[test]
     fn capture_free_var2() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", bound_var("x"))),
-            lambda("z", free_var("y"))
+            lambda("x", false, lambda("y", false, bound_var("x"))),
+            lambda("z", false, free_var("y"))
         );
-        let expected = lambda_no_box("y", last(lambda("z", bound_var("y"))));
-        let expected_final = lambda_no_box("y", lambda("z", bound_var("y")));
+        let expected = lambda_no_box("y", false,
+                                     last(lambda("z", false, bound_var("y"))));
+        let expected_final = lambda_no_box("y", false,
+                                           lambda("z", false, bound_var("y")));
 
         one_reduction_test(ast, expected, expected_final);
     }
@@ -800,12 +806,14 @@ mod tests {
     #[test]
     fn capture_free_var3() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", bound_var("x"))),
+            lambda("x", false, lambda("y", false, bound_var("x"))),
             redex(free_var("a"), free_var("y")),
         );
 
-        let expected = lambda_no_box("y", last(redex(free_var("a"), bound_var("y"))));
-        let expected_final = lambda_no_box("y", redex(free_var("a"), bound_var("y")));
+        let expected = lambda_no_box("y", false,
+                                     last(redex(free_var("a"), bound_var("y"))));
+        let expected_final = lambda_no_box("y", false,
+                                           redex(free_var("a"), bound_var("y")));
 
         one_reduction_test(ast, expected, expected_final);
     }
@@ -813,14 +821,16 @@ mod tests {
     #[test]
     fn dont_recapture_bound_var() {
         let ast = lambda_no_box(
-            "x",
+            "x", false,
             redex(
-                lambda("a", lambda("b", bound_var("a"))),
+                lambda("a", false, lambda("b", false, bound_var("a"))),
                 bound_var("x"),
             ),
         );
-        let expected = lambda_no_box("x", lambda("b", last(bound_var("x"))));
-        let expected_final = lambda_no_box("x", lambda("b", bound_var("x")));
+        let expected = lambda_no_box("x", false,
+                                     lambda("b", false, last(bound_var("x"))));
+        let expected_final = lambda_no_box("x", false,
+                                           lambda("b", false, bound_var("x")));
 
         one_reduction_test(ast, expected, expected_final);
     }
@@ -828,19 +838,19 @@ mod tests {
     #[test]
     fn alpha_conversion1() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", bound_var("x"))),
-            lambda("y", bound_var("y"))
+            lambda("x", false, lambda("y", false, bound_var("x"))),
+            lambda("y", false, bound_var("y"))
         );
         // should reduce to \y y1 -> y1 but may reduce to \y y -> y if alpha
         // conversion is not being done properly
 
         let expected = lambda_no_box(
-            "y",
-            last(lambda("y1", bound_var("y1"))),
+            "y", false,
+            last(lambda("y1", false, bound_var("y1"))),
         );
         let expected_final = lambda_no_box(
-            "y",
-            lambda("y1", bound_var("y1")),
+            "y", false,
+            lambda("y1", false, bound_var("y1")),
         );
         one_reduction_test(ast, expected, expected_final);
     }
@@ -848,16 +858,17 @@ mod tests {
     #[test]
     fn alpha_conversion2() {
         let ast = redex_no_box(
-            lambda("x", lambda("y", lambda("y1", bound_var("x")))),
-            lambda("y", bound_var("y")),
+            lambda("x", false,
+                   lambda("y", false, lambda("y1", false, bound_var("x")))),
+            lambda("y", false, bound_var("y")),
         );
         let expected = lambda_no_box(
-            "y",
-            lambda("y1", last(lambda("y2", bound_var("y2"))))
+            "y", false,
+            lambda("y1", false, last(lambda("y2", false, bound_var("y2"))))
         );
         let expected_final = lambda_no_box(
-            "y",
-            lambda("y1", lambda("y2", bound_var("y2")))
+            "y", false,
+            lambda("y1", false, lambda("y2", false, bound_var("y2")))
         );
         one_reduction_test(ast, expected, expected_final);
     }
@@ -867,48 +878,50 @@ mod tests {
         let expr = redex_no_box(
             redex(
                 redex(
-                    lambda("x",
-                           lambda("y",
-                                  lambda("z",
+                    lambda("x", false,
+                           lambda("y", false,
+                                  lambda("z", false,
                                          redex(
                                              redex(bound_var("x"), bound_var("z")),
                                              redex(bound_var("y"), bound_var("z")),
                                          ),
                      ))),
-                     lambda("a", lambda("b", bound_var("a"))),
+                     lambda("a", false, lambda("b", false, bound_var("a"))),
                 ),
-                lambda("c", lambda("d", bound_var("d"))),
+                lambda("c", false, lambda("d", false, bound_var("d"))),
             ),
             free_var("n")
         ); // S K K n
 
         let expected1 = redex_no_box(
             redex(
-                lambda("y",
-                       lambda("z",
+                lambda("y", false,
+                       lambda("z", false,
                               redex(
                                   redex(
-                                      last(lambda("a", lambda("b", bound_var("a")))),
+                                      last(lambda("a", false,
+                                                  lambda("b", false,
+                                                         bound_var("a")))),
                                       bound_var("z"),
                                   ),
                                   redex(bound_var("y"), bound_var("z")),
                               )
                        )
                 ),
-                lambda("c", lambda("d", bound_var("d"))),
+                lambda("c", false, lambda("d", false, bound_var("d"))),
             ),
             free_var("n")
         );
 
         let expected2 = redex_no_box(
-            lambda("z",
+            lambda("z", false,
                    redex(
                        redex(
-                           lambda("a", lambda("b", bound_var("a"))),
+                           lambda("a", false, lambda("b", false, bound_var("a"))),
                            bound_var("z"),
                        ),
                        redex(
-                           last(lambda("c", lambda("d", bound_var("d")))),
+                           last(lambda("c", false, lambda("d", false, bound_var("d")))),
                            bound_var("z"),
                        ),
                    ),
@@ -918,19 +931,19 @@ mod tests {
 
         let expected3 = redex_no_box(
             redex(
-                lambda("a", lambda("b", bound_var("a"))),
+                lambda("a", false, lambda("b", false, bound_var("a"))),
                 last(free_var("n")),
             ),
             redex(
-                lambda("c", lambda("d", bound_var("d"))),
+                lambda("c", false, lambda("d", false, bound_var("d"))),
                 last(free_var("n")),
             ),
         );
 
         let expected4 = redex_no_box(
-            lambda("b", last(free_var("n"))),
+            lambda("b", false, last(free_var("n"))),
             redex(
-                lambda("c", lambda("d", bound_var("d"))),
+                lambda("c", false, lambda("d", false, bound_var("d"))),
                 free_var("n"),
             ),
         );
@@ -963,36 +976,36 @@ mod tests {
     fn several_stages_alpha_conversion() {
         let expr = redex_no_box(
             redex(
-                lambda("x",
-                       lambda("y",
-                              lambda("z",
+                lambda("x", false,
+                       lambda("y", false,
+                              lambda("z", false,
                                      redex(
                                          bound_var("x"),
                                          redex(bound_var("y"), bound_var("z")),
                                      ),
                 ))),
-                lambda("z", bound_var("z")),
+                lambda("z", false, bound_var("z")),
             ),
-            lambda("z", bound_var("z")),
+            lambda("z", false, bound_var("z")),
         );
 
         let expected1 = redex_no_box(
-            lambda("y",
-                   lambda("z",
+            lambda("y", false,
+                   lambda("z", false,
                           redex(
-                              last(lambda("z1", bound_var("z1"))),
+                              last(lambda("z1", false, bound_var("z1"))),
                               redex(bound_var("y"), bound_var("z")),
                           ),
             )),
-            lambda("z", bound_var("z"))
+            lambda("z", false, bound_var("z"))
         );
 
         let expected2 = lambda_no_box(
-            "z",
+            "z", false,
             redex(
-                lambda("z1", bound_var("z1")),
+                lambda("z1", false, bound_var("z1")),
                 redex(
-                    last(lambda("z2", bound_var("z2"))),
+                    last(lambda("z2", false, bound_var("z2"))),
                     bound_var("z")
                 ),
             ),
@@ -1013,59 +1026,59 @@ mod tests {
     fn several_stages2() {
         let expr = redex_no_box(
             redex(
-                lambda("x",
-                       lambda("y",
-                              lambda("z",
+                lambda("x", false,
+                       lambda("y", false,
+                              lambda("z", false,
                                      redex(
                                          redex(bound_var("x"), bound_var("z")),
                                          redex(bound_var("y"), bound_var("z")),
                                      ),
                 ))),
-                lambda("a", lambda("b", bound_var("a"))),
+                lambda("a", false, lambda("b", false, bound_var("a"))),
             ),
-            lambda("c", lambda("d", bound_var("d"))),
+            lambda("c", false, lambda("d", false, bound_var("d"))),
         );
 
         let expected1 = redex_no_box(
-            lambda("y",
-                   lambda("z",
+            lambda("y", false,
+                   lambda("z", false,
                           redex(
                               redex(
-                                  last(lambda("a", lambda("b", bound_var("a")))),
+                                  last(lambda("a", false, lambda("b", false, bound_var("a")))),
                                   bound_var("z"),
                               ),
                               redex(bound_var("y"), bound_var("z")),
                           ),
             )),
-            lambda("c", lambda("d", bound_var("d"))),
+            lambda("c", false, lambda("d", false, bound_var("d"))),
         );
 
         let expected2 = lambda_no_box(
-            "z",
+            "z", false,
             redex(
                 redex(
-                    lambda("a", lambda("b", bound_var("a"))),
+                    lambda("a", false, lambda("b", false, bound_var("a"))),
                     bound_var("z"),
                 ),
                 redex(
-                    last(lambda("c", lambda("d", bound_var("d")))),
+                    last(lambda("c", false, lambda("d", false, bound_var("d")))),
                     bound_var("z"),
                 ),
             ),
         );
 
         let expected3 = lambda_no_box(
-            "z",
+            "z", false,
             redex(
-                lambda("b", last(bound_var("z"))),
+                lambda("b", false, last(bound_var("z"))),
                 redex(
-                    lambda("c", lambda("d", bound_var("d"))),
+                    lambda("c", false, lambda("d", false, bound_var("d"))),
                     bound_var("z"),
                 ),
             ),
         );
 
-        let expected4 = lambda_no_box("z", bound_var("z"));
+        let expected4 = lambda_no_box("z", false, bound_var("z"));
 
         let parser = Parser::new();
 
@@ -1089,30 +1102,30 @@ mod tests {
     #[test]
     fn def_replaced_in_free_lambda_var() {
         let mut parser = Parser::new();
-        parser.insert_symbol("I", lambda_no_box("x", bound_var("x")));
+        parser.insert_symbol("I", lambda_no_box("x", false, bound_var("x")));
 
         let ast = lambda_no_box(
-            "y",
+            "y", false,
             redex(
                 free_var("I"),
                 bound_var("y")
             ),
         );
         let expected1 = lambda_no_box(
-            "y",
+            "y", false,
             redex(
-                last(lambda("x",
+                last(lambda("x", false,
                        bound_var("x"),
                 )),
                 bound_var("y"),
             ),
         );
         let expected2 = lambda_no_box(
-            "y",
+            "y", false,
             last(bound_var("y")),
         );
         let expected_final = lambda_no_box(
-            "y",
+            "y", false,
             bound_var("y"),
         );
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
@@ -1131,10 +1144,10 @@ mod tests {
     #[test]
     fn def_not_replaced_in_bound_var() {
         let mut parser = Parser::new();
-        parser.insert_symbol("a", lambda_no_box("x", bound_var("x")));
+        parser.insert_symbol("a", lambda_no_box("x", false, bound_var("x")));
 
         let ast = lambda_no_box(
-            "a",
+            "a", false,
             redex(bound_var("a"), bound_var("a")),
         );
         let expected = ast.clone();
@@ -1147,11 +1160,11 @@ mod tests {
     #[test]
     fn replace_last_step() {
         let mut parser = Parser::new();
-        parser.insert_symbol("I", lambda_no_box("x", bound_var("x")));
+        parser.insert_symbol("I", lambda_no_box("x", false, bound_var("x")));
 
         let ast = free_var_no_box("I");
-        let expected1 = last_no_box(lambda_no_box("x", bound_var("x")));
-        let expected2 = lambda_no_box("x", bound_var("x"));
+        let expected1 = last_no_box(lambda_no_box("x", false, bound_var("x")));
+        let expected2 = lambda_no_box("x", false, bound_var("x"));
 
         let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
         assert!(!has_changed);
@@ -1171,20 +1184,20 @@ mod tests {
         parser.insert_symbol(
             "a",
             redex_no_box(
-                lambda("x", bound_var("x")),
-                lambda("y", bound_var("y"))
+                lambda("x", false, bound_var("x")),
+                lambda("y", false, bound_var("y"))
             ),
         );
         let ast = redex_no_box(free_var("a"), free_var("b"));
         let expected1 = redex_no_box(
             last(redex(
-                lambda("x", bound_var("x")),
-                lambda("y", bound_var("y")),
+                lambda("x", false, bound_var("x")),
+                lambda("y", false, bound_var("y")),
             )),
             free_var("b"),
         );
         let expected2 = redex_no_box(
-            last(lambda("y", bound_var("y"))),
+            last(lambda("y", false, bound_var("y"))),
             free_var("b"),
         );
         let expected3 = last_no_box(free_var_no_box("b"));
@@ -1210,28 +1223,28 @@ mod tests {
     #[test]
     fn alpha_conversion_def() {
         let mut parser = Parser::new();
-        parser.insert_symbol("id", lambda_no_box("x", bound_var("x")));
+        parser.insert_symbol("id", lambda_no_box("x", false, bound_var("x")));
 
         let ast = lambda_no_box(
-            "x",
+            "x", false,
             redex(
                 free_var("id"),
                 bound_var("x"),
             ),
         );
         let expected1 = lambda_no_box(
-            "x",
+            "x", false,
             redex(
-                last(lambda("x1", bound_var("x1"))),
+                last(lambda("x1", false, bound_var("x1"))),
                 bound_var("x"),
             ),
         );
         let expected2 = lambda_no_box(
-            "x",
+            "x", false,
             last(bound_var("x")),
         );
         let expected_final = lambda_no_box(
-            "x",
+            "x", false,
             bound_var("x"),
         );
 
@@ -1251,41 +1264,41 @@ mod tests {
     #[test]
     fn simultaneous_alpha_conversions1() {
         let ast = redex_no_box(
-            lambda("f",
+            lambda("f", false,
                    redex(
-                       lambda("g",
-                              lambda("h",
+                       lambda("g", false,
+                              lambda("h", false,
                                      redex(bound_var("h"), bound_var("g")),
                        )),
-                       lambda("h",
+                       lambda("h", false,
                               redex(bound_var("h"), bound_var("f")),
                        ),
                    ),
             ),
-            lambda("h", bound_var("h")),
+            lambda("h", false, bound_var("h")),
         ); // (\f -> (\g h -> h g) (\h -> h f)) (\h -> h)
 
         let expected1 = redex_no_box(
-           lambda("g",
-                  lambda("h",
+           lambda("g", false,
+                  lambda("h", false,
                          redex(bound_var("h"), bound_var("g")),
            )),
-           lambda("h",
+           lambda("h", false,
                   redex(
                       bound_var("h"),
-                      last(lambda("h1", bound_var("h1"))),
+                      last(lambda("h1", false, bound_var("h1"))),
                   )
             ),
         ); // (\g h. h g) (\h. h (\h1. h1))
 
         let expected2 = lambda_no_box(
-            "h",
+            "h", false,
             redex(
                 bound_var("h"),
-                last(lambda("h1",
+                last(lambda("h1", false,
                        redex(
                            bound_var("h1"),
-                           lambda("h2", bound_var("h2")),
+                           lambda("h2", false, bound_var("h2")),
                        )
                  )),
             ),
@@ -1305,51 +1318,51 @@ mod tests {
     #[test]
     fn simultaneous_alpha_conversions2() {
         let ast = redex_no_box(
-            lambda("f",
+            lambda("f", false,
                 redex(
-                    lambda("g",
-                           lambda("h",
+                    lambda("g", false,
+                           lambda("h", false,
                                   redex(
                                       bound_var("h"),
                                       redex(bound_var("g"), bound_var("f")),
                                   )
                     )),
-                    lambda("h",
+                    lambda("h", false,
                            redex(bound_var("h"), bound_var("f")),
                     ),
                 ),
             ),
-            lambda("h", bound_var("h")),
+            lambda("h", false, bound_var("h")),
         ); // (\f. (\g h. h (g f)) (\h. h f)) (\h. h)
         let expected1 = redex_no_box(
-            lambda("g",
-                   lambda("h",
+            lambda("g", false,
+                   lambda("h", false,
                           redex(
                               bound_var("h"),
                               redex(
                                   bound_var("g"),
-                                  last(lambda("h1", bound_var("h1")))
+                                  last(lambda("h1", false, bound_var("h1")))
                           )),
             )),
-            lambda("h",
+            lambda("h", false,
                    redex(
                        bound_var("h"),
-                       last(lambda("h1", bound_var("h1"))),
+                       last(lambda("h1", false, bound_var("h1"))),
                    ),
             ),
         ); // (\g h. h (g (\h1. h1))) (\h. h (\h1. h1))
         let expected2 = lambda_no_box(
-            "h",
+            "h", false,
             redex(
                 bound_var("h"),
                 redex(
-                    last(lambda("h2",
+                    last(lambda("h2", false,
                                 redex(
                                     bound_var("h2"),
-                                    lambda("h3", bound_var("h3")),
+                                    lambda("h3", false, bound_var("h3")),
                                 ),
                     )),
-                    lambda("h1", bound_var("h1")),
+                    lambda("h1", false, bound_var("h1")),
                 ),
             )
         ); // (\h. h ((\h2. h2 (\h3. h3)) (\h1. h1)))
