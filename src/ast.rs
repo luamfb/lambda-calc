@@ -1143,22 +1143,9 @@ mod tests {
             lambda("x", true, free_var("a")),
             last(free_var("b")),
         );
-        let expected2 = last_no_box(free_var_no_box("a"));
+        let expected2 = free_var_no_box("a");
         let expected_final = free_var_no_box("a");
-
-        let parser = Parser::new();
-
-        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
-        assert!(has_changed);
-        assert_eq!(expected1, ast);
-
-        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
-        assert!(has_changed);
-        assert_eq!(expected2, ast);
-
-        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
-        assert!(!has_changed);
-        assert_eq!(expected_final, ast);
+        two_reduction_test(ast, expected1, expected2, expected_final);
     }
 
     #[test]
@@ -1166,16 +1153,16 @@ mod tests {
         let ast = redex_no_box(
             lambda("x", true, free_var("a")),
             redex(
-                lambda("y", false, bound_var("y")),
-                lambda("y", false, bound_var("y")),
+                lambda("y", false, redex(bound_var("y"), bound_var("y"))),
+                lambda("y", false, redex(bound_var("y"), bound_var("y"))),
             ),
         );
         let expected = redex_no_box(
             lambda("x", true, free_var("a")),
-            last(redex(
-                    lambda("y", false, bound_var("y")),
-                    lambda("y", false, bound_var("y")),
-            )),
+            redex(
+                last(lambda("y", false, redex(bound_var("y"), bound_var("y")))),
+                last(lambda("y", false, redex(bound_var("y"), bound_var("y")))),
+            ),
         );
         let parser = Parser::new();
 
