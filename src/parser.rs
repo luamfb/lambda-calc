@@ -322,8 +322,8 @@ impl<'a, I> LineParser<'a, I>
             Err(e) => self.print_syntax_err(&e),
             Ok(None) => self.print_syntax_err("a definition can't bind to an empty expression"),
             Ok(Some(ast)) => match ast.expr_ref() {
-                Expr::LambdaTerm { var_name: _, body: _ } => {
-                    parser.insert_symbol(name,  ast);
+                Expr::LambdaTerm { .. } => {
+                    parser.insert_symbol(name, ast);
                 },
                 Expr::Redex(_,_) => {
                     if let Some(non_redex) = ast.beta_reduce_quiet(parser) {
@@ -364,7 +364,7 @@ impl<'a, I> LineParser<'a, I>
                     queue.push(Ast::new(Expr::Var { name: s.to_string(), is_free, }));
                 },
                 Some(Token::Lambda) => {
-                    let (ast, var_count) = self.parse_lambda()?;
+                    let (ast, var_count) = self.parse_lambda(false)?;
                     queue.push(ast);
                     for _ in 0..var_count {
                         self.lambda_vars.pop();
@@ -385,7 +385,7 @@ impl<'a, I> LineParser<'a, I>
     // The number returned is the number of lambda variables pushed into
     // self.lambda_vars.
     //
-    fn parse_lambda(&mut self) -> Result<(Ast, i32), String> {
+    fn parse_lambda(&mut self, var_strict: bool) -> Result<(Ast, i32), String> {
         match self.token_iter.next() {
             Some(Token::Id(name)) => {
                 if self.lambda_vars.iter().any(|x| x == name) {
@@ -393,13 +393,17 @@ impl<'a, I> LineParser<'a, I>
                 }
                 self.lambda_vars.push(name.to_string());
 
-                let (lambda_body, var_count) = self.parse_lambda()?;
+                let (lambda_body, var_count) = self.parse_lambda(false)?;
                 let ast = Ast::new(Expr::LambdaTerm {
                     var_name: name.to_string(),
+                    var_strict,
                     body: Box::new(lambda_body),
                 });
 
                 Ok((ast, var_count + 1))
+            },
+            Some(Token::Strict) => {
+                self.parse_lambda(true)
             },
             Some(Token::Gives) => {
                 // finalize lambda term by returning its body.
@@ -1149,4 +1153,6 @@ mod tests {
             Some(&lambda_no_box("x", bound_var("x"))),
         );
     }
+
+    //TODO: some tests with strict!
 }

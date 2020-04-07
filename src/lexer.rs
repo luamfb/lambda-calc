@@ -10,6 +10,7 @@ pub enum Token<'a> {
     Lambda,
     OpenParen,
     CloseParen,
+    Strict,
     Command(Command),
 }
 
@@ -124,6 +125,7 @@ impl<'a> Iterator for TokenIter<'a> {
             (vec!["λ", "\\", "lambda"], Token::Lambda),
             (vec!["("],                 Token::OpenParen),
             (vec![")"],                 Token::CloseParen),
+            (vec!["!"],                 Token::Strict),
             // anything else is either a Id or an invalid token.
         ];
         for (names, token_class) in classifier {

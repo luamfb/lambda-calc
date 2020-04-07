@@ -20,7 +20,7 @@ pub struct Ast {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expr {
     Var { name: String, is_free: bool, },
-    LambdaTerm {var_name: String, body: Box<Ast>},
+    LambdaTerm {var_name: String, var_strict: bool, body: Box<Ast>},
     Redex(Box<Ast>, Box<Ast>),
 }
 
@@ -158,7 +158,7 @@ impl Ast {
                 left.unset_reduced_last();
                 right.unset_reduced_last();
             },
-            Expr::LambdaTerm { var_name: _, body, } => {
+            Expr::LambdaTerm { var_name: _, var_strict: _, body, } => {
                 body.unset_reduced_last();
             },
             _ => {},
@@ -194,7 +194,12 @@ impl Ast {
         match self.expr {
             Expr::Redex(left, mut right) => {
                 match left.expr {
-                    Expr::LambdaTerm {var_name, body: mut lambda_body} => {
+                    Expr::LambdaTerm {var_name, var_strict, body: mut lambda_body} => {
+                        // evaluate the argument before replacing, if needed
+                        if var_strict {
+                            *right = right.beta_reduce(&parser, true)
+                                .expect("interrupted!"); //FIXME maybe we should return an Option here too?
+                        }
                         // note that we don't include this lambda's var name in
                         // lambda_vars_in_use, since it's the variable that will
                         // be replaced by reduction
@@ -236,8 +241,8 @@ impl Ast {
                     }
                 }
             },
-            Expr::LambdaTerm {var_name: name, body: lambda_body} => {
-                lambda_vars_in_use.insert(name.clone());
+            Expr::LambdaTerm {var_name, var_strict, body: lambda_body} => {
+                lambda_vars_in_use.insert(var_name.clone());
 
                 let (new_body, has_changed)
                     = lambda_body.beta_reduce_once_recur(lambda_vars_in_use, parser);
@@ -245,7 +250,8 @@ impl Ast {
                 //lambda_vars_in_use.remove(&name);
 
                 let new_lambda = Ast::new(Expr::LambdaTerm {
-                    var_name: name,
+                    var_name,
+                    var_strict,
                     body: Box::new(new_body),
                 });
                 (new_lambda, has_changed)
@@ -256,7 +262,7 @@ impl Ast {
 
     fn get_all_lambda_vars(&self, lambda_vars_in_use: &mut HashSet<String>) {
         match &self.expr {
-            Expr::LambdaTerm {var_name: name, body: lambda_body} => {
+            Expr::LambdaTerm {var_name: name, body: lambda_body, ..} => {
                 lambda_vars_in_use.insert(name.clone());
                 lambda_body.get_all_lambda_vars(lambda_vars_in_use);
             },
@@ -271,7 +277,7 @@ impl Ast {
     fn alpha_convert(&mut self, lambda_vars_in_use: &mut HashSet<String>,
                      conversions: &mut HashMap<String, String>) {
         match &mut self.expr {
-            Expr::LambdaTerm {var_name: name, body: lambda_body} => {
+            Expr::LambdaTerm {var_name: name, body: lambda_body, .. } => {
                 if let Some(new_name) = get_next_avail_name(name, lambda_vars_in_use) {
                     lambda_vars_in_use.insert(new_name.clone());
                     conversions.insert(name.clone(), new_name.clone());
@@ -302,7 +308,7 @@ impl Ast {
                 left.replace_bound_var(arg, var_name, lambda_vars);
                 right.replace_bound_var(arg, var_name, lambda_vars);
             },
-            Expr::LambdaTerm { var_name: _, body: lambda_body } => {
+            Expr::LambdaTerm { body: lambda_body, .. } => {
                 lambda_body.replace_bound_var(arg, var_name, lambda_vars);
             },
             Expr::Var{ name, is_free } => {
@@ -323,7 +329,7 @@ impl Ast {
                     *is_free = false;
                 }
             },
-            Expr::LambdaTerm { var_name: _, body: lambda_body } => {
+            Expr::LambdaTerm { body: lambda_body, .. } => {
                 lambda_body.capture_free_vars(lambda_vars);
             },
             Expr::Redex(right, left) => {
@@ -358,22 +364,26 @@ impl Ast {
                     write!(f, ")")?;
                 }
             },
-            Expr::LambdaTerm { var_name: name, body: lambda_body } => {
+            Expr::LambdaTerm { var_name: name, var_strict, body: lambda_body } => {
                 let paren_needed = !outer_term_is_lambda;
                 if paren_needed {
                     write!(f, "(")?;
                 }
                 if outer_term_is_lambda {
-                    write!(f, " {}", name)?;
+                    write!(f, " ")?;
                 } else {
                     if f.alternate() {
-                        write!(f, "\\{}", name)?;
+                        write!(f, "\\")?;
                     } else {
-                        write!(f, "λ{}", name)?;
+                        write!(f, "λ")?;
                     }
                 }
+                if *var_strict {
+                        write!(f, "!")?;
+                }
+                write!(f, "{}", name)?;
                 match lambda_body.expr {
-                    Expr::LambdaTerm {var_name: _, body: _} => {},
+                    Expr::LambdaTerm { .. } => {},
                     _ => write!(f, ". ")?,
                 }
                 lambda_body.actual_fmt(f, true)?;
@@ -1356,6 +1366,8 @@ mod tests {
         assert_eq!(ast, expected2);
         assert!(has_changed);
     }
+
+    // TODO: some tests with strict!
 
     /*
      * commented out since unnecessary alpha conversions do not lead to
