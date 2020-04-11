@@ -216,10 +216,7 @@ impl Ast {
                         // be replaced by reduction
                         //
                         lambda_body.get_all_lambda_vars(lambda_vars_in_use);
-                        {
-                            let mut conversions = HashMap::new();
-                            right.alpha_convert(lambda_vars_in_use, &mut conversions);
-                        }
+                        right.alpha_convert(lambda_vars_in_use, &mut HashMap::new());
                         lambda_body.replace_bound_var(&right, &var_name, lambda_vars_in_use);
 
                         lambda_vars_in_use.clear();
