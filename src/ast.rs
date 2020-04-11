@@ -204,12 +204,24 @@ impl Ast {
                                 right.beta_reduce_once_recur(&mut HashSet::new(), parser);
                             *right = new_right;
                             if has_changed {
-                                let lambda_term = Ast::new(Expr::LambdaTerm{
+                                let redex = Ast::strict_var_reconstruct_redex(
                                     var_name,
                                     var_strict,
-                                    body: lambda_body
-                                });
-                                return (Ast::new(Expr::Redex(Box::new(lambda_term), right)), true);
+                                    lambda_body,
+                                    right);
+                                return (redex, true);
+                            } else {
+                                let (new_right, has_changed) =
+                                    right.last_step_beta_reduce(&parser);
+                                *right = new_right;
+                                if has_changed {
+                                    let redex = Ast::strict_var_reconstruct_redex(
+                                        var_name,
+                                        var_strict,
+                                        lambda_body,
+                                        right);
+                                    return (redex, true);
+                                }
                             }
                         }
                         // note that we don't include this lambda's var name in
@@ -346,6 +358,23 @@ impl Ast {
                 left.capture_free_vars(lambda_vars);
             },
         }
+    }
+
+    // use when the redex's argument has been reduced because of a strict
+    // variable and the original redex must be reconstructed, e.g.
+    //  (\!x -> x) ((\x -> x) a)
+    // becoming
+    //  (\!x -> x) a
+    fn strict_var_reconstruct_redex(var_name: String,
+                                    var_strict: bool,
+                                    lambda_body: Box<Ast>,
+                                    right: Box<Ast>) -> Ast {
+        let lambda_term = Ast::new(Expr::LambdaTerm{
+            var_name,
+            var_strict,
+            body: lambda_body,
+        });
+        Ast::new(Expr::Redex(Box::new(lambda_term), right))
     }
 
     fn actual_fmt(&self, f: &mut Formatter,
