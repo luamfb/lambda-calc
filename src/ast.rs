@@ -1478,4 +1478,23 @@ mod tests {
         assert_eq!(ast, expected1);
     }
     */
+
+    #[test]
+    fn eager_eval_symbol_subst() {
+        let mut parser = Parser::new();
+        parser.insert_symbol("I", lambda_no_box("x", false, bound_var("x")));
+
+        let ast = redex_no_box(
+            lambda("y", true, bound_var("y")),
+            free_var("I"),
+        );
+        let expected1 = redex_no_box(
+            lambda("y", true, bound_var("y")),
+            last(lambda("x", false, bound_var("x")))
+        );
+
+        let (ast, has_changed) = ast.beta_reduce_once(&mut HashSet::new(), &parser);
+        assert!(has_changed);
+        assert_eq!(ast, expected1);
+    }
 }
