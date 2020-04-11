@@ -1,7 +1,8 @@
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::collections::{HashMap, HashSet};
-use std::io::Read;
+use std::{
+    fmt::{self, Display, Formatter},
+    collections::{HashMap, HashSet},
+    io::Read,
+};
 
 use signal_hook::{
     iterator::Signals,

@@ -1,13 +1,12 @@
-use crate::{
-    lexer::{self, Token, TokenIter},
-    ast::{Ast, Expr},
-    cmd,
-    cmd::Command,
-};
 use std::{
     collections::HashMap,
     io::{self, BufRead, BufReader},
     fs::File,
+};
+use crate::{
+    lexer::{self, Token, TokenIter},
+    ast::{Ast, Expr},
+    cmd::{self, Command},
 };
 
 /// Our hand-written parser.
