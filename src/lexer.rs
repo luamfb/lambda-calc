@@ -163,7 +163,7 @@ impl<'a> TokenIter<'a> {
     fn consume_whitespace(&mut self) {
         let rest_of_string = self.rest_of_string();
         for c in rest_of_string.chars() {
-            if !c.is_whitespace() {
+            if !c.is_whitespace() && c != '\u{0}' {
                 break
             }
             self.pos += c.len_utf8();
