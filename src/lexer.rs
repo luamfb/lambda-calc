@@ -1,4 +1,7 @@
-use crate::cmd::Command;
+use crate::cmd::{
+    Command,
+    COMMAND_CLASSIFIER,
+};
 
 /// Tokens understood by the parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,7 +200,7 @@ impl<'a> TokenIter<'a> {
 
         let (name_len, _) = self.get_next_word_and_last_char();
         let name = &rest_of_string[0..name_len];
-        for class in crate::cmd::COMMAND_CLASSIFIER {
+        for class in COMMAND_CLASSIFIER {
             if name == class.short_name || name == class.long_name {
                 self.pos += name.len();
                 self.cmd_arg_expected = class.arg_expected;
