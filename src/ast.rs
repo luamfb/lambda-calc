@@ -1526,4 +1526,91 @@ mod tests {
         assert!(has_changed);
         assert_eq!(ast, expected1);
     }
+
+    #[test]
+    fn alpha_conversion_numeric_vars1() {
+        let ast = redex_no_box(
+            lambda("x", false,
+                   lambda("x1", false,
+                          redex(bound_var("x1"), bound_var("x")))),
+            lambda("x1", false,
+                   bound_var("x1")),
+        );
+        let expected = lambda_no_box(
+            "x1", false,
+            redex(
+                bound_var("x1"),
+                last(lambda("x2", false, bound_var("x2"))),
+            ));
+        let expected_final = lambda_no_box(
+            "x1", false,
+            redex(
+                bound_var("x1"),
+                lambda("x2", false, bound_var("x2")),
+            ));
+        one_reduction_test(ast, expected, expected_final);
+    }
+
+    #[test]
+    fn alpha_conversion_numeric_vars2() {
+        let ast = redex_no_box(
+            lambda("x", false,
+                   lambda("x1", false,
+                          redex(bound_var("x1"), bound_var("x")))),
+            redex(
+                lambda("x1", false, bound_var("x1")),
+                lambda("x1", false, bound_var("x1")),
+            ),
+        );
+        let expected1 = lambda_no_box(
+            "x1", false,
+            redex(
+                bound_var("x1"),
+                last(redex(
+                    lambda("x2", false, bound_var("x2")),
+                    lambda("x3", false, bound_var("x3")),
+                )),
+            ));
+        let expected2 = lambda_no_box(
+            "x1", false,
+            redex(
+                bound_var("x1"),
+                last(lambda("x3", false, bound_var("x3"))),
+            ));
+        let expected_final = lambda_no_box(
+            "x1", false,
+            redex(
+                bound_var("x1"),
+                lambda("x3", false, bound_var("x3")),
+            ));
+        two_reduction_test(ast, expected1, expected2, expected_final);
+    }
+
+    #[test]
+    fn alpha_conversion_numeric_vars3() {
+        let ast = redex_no_box(
+            lambda("a", false,
+                   lambda("x4", false,
+                          lambda("x2", false,
+                                 lambda("x1", false,
+                                        lambda("x", false,
+                                               bound_var("a")))))),
+            lambda("x", false, bound_var("x")),
+        );
+        let expected1 = lambda_no_box(
+            "x4", false,
+            lambda("x2", false,
+                   lambda("x1", false,
+                          lambda("x", false,
+                                 last(lambda("x3", false, bound_var("x3")))))),
+        );
+        let expected_final = lambda_no_box(
+            "x4", false,
+            lambda("x2", false,
+                   lambda("x1", false,
+                          lambda("x", false,
+                                 lambda("x3", false, bound_var("x3"))))),
+        );
+        one_reduction_test(ast, expected1, expected_final);
+    }
 }
