@@ -1613,4 +1613,74 @@ mod tests {
         );
         one_reduction_test(ast, expected1, expected_final);
     }
+
+    #[test]
+    fn multiple_alpha_conversions_numeric_vars() {
+        let ast = redex_no_box(
+            lambda("y", false,
+                lambda("f", false,
+                    redex(
+                        redex(
+                            bound_var("f"),
+                            bound_var("y"),
+                        ),
+                        lambda("x", false, bound_var("x")),
+                    ),
+                ),
+            ),
+            lambda(
+                "x1", false,
+                lambda(
+                    "x", false,
+                    redex(
+                        bound_var("x1"),
+                        bound_var("x")
+                    ),
+                ),
+            ),
+        );
+
+        let expected1 = redex_no_box(
+            lambda(
+                "f", false,
+                redex(
+                    bound_var("f"),
+                    last(
+                        lambda(
+                            "x2", false,
+                            lambda(
+                                "x1", false,
+                                redex(
+                                    bound_var("x2"),
+                                    bound_var("x1"),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            lambda("x", false, bound_var("x")),
+        );
+        let expected_final = redex_no_box(
+            lambda(
+                "f", false,
+                redex(
+                    bound_var("f"),
+                    lambda(
+                        "x2", false,
+                        lambda(
+                            "x1", false,
+                            redex(
+                                bound_var("x2"),
+                                bound_var("x1"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            lambda("x", false, bound_var("x")),
+        );
+
+        one_reduction_test(ast, expected1, expected_final);
+    }
 }
