@@ -1415,14 +1415,14 @@ mod tests {
             "h", false,
             redex(
                 bound_var("h"),
-                last(lambda("h1", false,
+                last(lambda("h2", false,
                        redex(
-                           bound_var("h1"),
-                           lambda("h2", false, bound_var("h2")),
+                           bound_var("h2"),
+                           lambda("h1", false, bound_var("h1")),
                        )
                  )),
             ),
-        ); // \h. h (\h1. h1 (\h2. h2))
+        );
 
         let parser = Parser::new();
 
@@ -1660,31 +1660,28 @@ mod tests {
                 ),
             ),
         );
-
-        let expected1 = redex_no_box(
-            lambda(
-                "f", false,
+        let expected1 = lambda_no_box(
+            "f", false,
+            redex(
                 redex(
                     bound_var("f"),
-                    last(
+                    last(lambda(
+                        "x1", false,
                         lambda(
                             "x2", false,
-                            lambda(
-                                "x1", false,
-                                redex(
-                                    bound_var("x2"),
-                                    bound_var("x1"),
-                                ),
+                            redex(
+                                bound_var("x1"),
+                                bound_var("x2")
                             ),
                         ),
-                    ),
+                    )),
                 ),
+                lambda("x", false, bound_var("x")),
             ),
-            lambda("x", false, bound_var("x")),
         );
-        let expected_final = redex_no_box(
-            lambda(
-                "f", false,
+        let expected_final = lambda_no_box(
+            "f", false,
+            redex(
                 redex(
                     bound_var("f"),
                     lambda(
@@ -1692,16 +1689,15 @@ mod tests {
                         lambda(
                             "x1", false,
                             redex(
-                                bound_var("x2"),
                                 bound_var("x1"),
+                                bound_var("x2")
                             ),
                         ),
                     ),
                 ),
+                lambda("x", false, bound_var("x")),
             ),
-            lambda("x", false, bound_var("x")),
         );
-
         one_reduction_test(ast, expected1, expected_final);
     }
 }
