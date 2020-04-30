@@ -229,7 +229,18 @@ impl Ast {
                         // be replaced by reduction
                         //
                         lambda_body.get_all_lambda_vars(lambda_vars_in_use);
-                        right.alpha_convert(lambda_vars_in_use, &mut HashMap::new());
+                        // we also get the lambda variables in the left side,
+                        // because, if we have
+                        //      (\y x -> y x) (\x x1 -> x x1)
+                        // the right hand side x should be converted to x2
+                        // rather than x1.
+                        //
+                        let mut lambda_vars_right = HashSet::new();
+                        right.get_all_lambda_vars(&mut lambda_vars_right);
+
+                        right.alpha_convert(lambda_vars_in_use,
+                                            &lambda_vars_right,
+                                            &mut HashMap::new());
                         lambda_body.replace_bound_var(&right, &var_name, lambda_vars_in_use);
 
                         lambda_vars_in_use.clear();
@@ -242,7 +253,13 @@ impl Ast {
                         // symbol table
                         if let Some(ast_ref) = parser.get_symbol(&name) {
                             let mut new_left = ast_ref.clone();
-                            new_left.alpha_convert(lambda_vars_in_use, &mut HashMap::new());
+
+                            let mut lambda_vars_right = HashSet::new();
+                            new_left.get_all_lambda_vars(&mut lambda_vars_right);
+
+                            new_left.alpha_convert(lambda_vars_in_use,
+                                                   &lambda_vars_right,
+                                                   &mut HashMap::new());
                             new_left.reduced_last = true;
                             let new_ast = Ast::new(Expr::Redex(
                                 Box::new(new_left),
@@ -295,20 +312,22 @@ impl Ast {
         }
     }
 
-    fn alpha_convert(&mut self, lambda_vars_in_use: &mut HashSet<String>,
+    fn alpha_convert(&mut self,
+                     lambda_vars_left: &mut HashSet<String>,
+                     lambda_vars_right: &HashSet<String>,
                      conversions: &mut HashMap<String, String>) {
         match &mut self.expr {
             Expr::LambdaTerm {var_name: name, body: lambda_body, .. } => {
-                if let Some(new_name) = get_next_avail_name(name, lambda_vars_in_use) {
-                    lambda_vars_in_use.insert(new_name.clone());
+                if let Some(new_name) = get_next_avail_name(name, lambda_vars_left, lambda_vars_right) {
+                    lambda_vars_left.insert(new_name.clone());
                     conversions.insert(name.clone(), new_name.clone());
                     *name = new_name;
                 }
-                lambda_body.alpha_convert(lambda_vars_in_use, conversions);
+                lambda_body.alpha_convert(lambda_vars_left, lambda_vars_right, conversions);
             },
             Expr::Redex(left, right) => {
-                left.alpha_convert(lambda_vars_in_use, conversions);
-                right.alpha_convert(lambda_vars_in_use, conversions);
+                left.alpha_convert(lambda_vars_left, lambda_vars_right, conversions);
+                right.alpha_convert(lambda_vars_left, lambda_vars_right, conversions);
             }
             Expr::Var {name, is_free, } => {
                 if !*is_free {
@@ -449,8 +468,10 @@ impl Display for Ast {
     }
 }
 
-fn get_next_avail_name(name: &str, names_in_use: &HashSet<String>) -> Option<String> {
-    if !names_in_use.contains(name) {
+fn get_next_avail_name(name: &str,
+                       names_left: &HashSet<String>,
+                       names_right: &HashSet<String>) -> Option<String> {
+    if !names_left.contains(name) {
         return None;
     }
     let (prefix, mut num): (&str, i32) = match name.chars().position(|x: char| x.is_numeric()) {
@@ -462,7 +483,7 @@ fn get_next_avail_name(name: &str, names_in_use: &HashSet<String>) -> Option<Str
     loop {
         num += 1; // start from 1: the var without number suffix was the "0th"
         new_name = format!("{}{}", prefix, num.to_string());
-        if !names_in_use.contains(&new_name) {
+        if !names_left.contains(&new_name) && !names_right.contains(&new_name) {
             return Some(new_name);
         }
     }
