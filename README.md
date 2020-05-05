@@ -12,6 +12,10 @@ reduced last.
 
 ![Screenshot 2](screenshots/load_add.png)
 
+![Screenshot 3](screenshots/count_nostep.png)
+
+![Screenshot 4](screenshots/non_interactive.png)
+
 ## Installation
 
 [Install cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
