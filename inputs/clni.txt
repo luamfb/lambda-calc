@@ -1,0 +1,241 @@
+# adapted from my pong_lambda project: https://github.com/luamfb/lambda-pong
+
+# booleans
+true = \x y -> x
+false = \x y -> y
+not = \b -> b false true
+and = \p q -> p q false
+or  = \p q -> p true q
+
+# pairs
+pair = \x y z -> z x y
+first = \p -> p (\x y -> x)
+second = \p -> p (\x y -> y)
+
+# combinators
+id = \u -> u
+const = \u v -> u
+I = id
+K = const
+Y = \f -> (\x -> f (x x)) (\x -> f (x x))
+
+# lists
+#hd = first
+#tl = second
+nil = false
+isEmpty = \list -> list (\head tail nilClause -> false) true
+
+# unfortunately takes O(length of listOne) steps
+append = \listOne listTwo -> Y      &
+    (\recur l -> l                  &
+        (\head tail nilClause ->    &
+            pair head (recur tail)) &
+        listTwo)                    &
+    listOne
+
+# Evaluates the nth element of a list, starting from 0.
+# If the index is < 0 or greater than the list size, evaluates to nil.
+#
+nth = \list num -> Y                        &
+    (\recur l !n -> l                       &
+        (\head tail nilClause -> (sign n)   &
+            (recur tail (pred n))           &
+            nil                             &
+            head)                           &
+        nil)                                &
+    list num
+
+mapList = \f list -> Y                      &
+    (\recur l -> l                          &
+        (\head tail nilClause ->            &
+            pair (f head) (recur tail))     &
+        nil)                                &
+    list
+
+# Integers.
+# The encoding we use for positive numbers is somewhere between a list
+# (chained church pairs) and
+# the traditional church encoding for numbers.
+# This allows a simple implementation for the predecessor, which takes
+# O(1) reduction steps, while keeping a simple implementation for the successor
+# function.
+# Further, the way the predecessor function works also allows us to deal with
+# negative numbers, though with some caveats; see below.
+#
+# To the best of my knowledge, I'm the first one to derive this encoding, and
+# therefore I get to name it too. Since the positive numbers are made of Chained
+# Lambdas and the negative ones, of Nested redexes with the Identity function,
+# it makes sense to call it CLNI (or Chalaneid, if you want a more exotic name).
+#
+
+zero = \x -> x
+succ = \n x -> n (\u -> u x)
+pred = \n x -> (n x (\u -> u))
+
+one     = succ zero
+two     = succ one
+three   = succ two
+four    = succ three
+five    = succ four
+six     = succ five
+seven   = succ six
+eight   = succ seven
+nine    = succ eight
+ten     = succ nine
+
+minusOne    = pred zero
+minusTwo    = pred minusOne
+minusThree  = pred minusTwo
+minusFour   = pred minusThree
+minusFive   = pred minusFour
+minusSix    = pred minusFive
+minusSeven  = pred minusSix
+minusEight  = pred minusSeven
+minusNine   = pred minusEight
+minusTen    = pred minusNine
+
+# This is just a generalization of true and false with 3 branches.
+posSign  = \x y z -> x
+negSign  = \x y z -> y
+zeroSign = \x y z -> z
+
+# Extract the sign of a number.
+# This unfortunately takes O(n) steps on negative numbers, but, due to their
+# nature, I don't think anything can be done about it.
+#
+sign = \n -> n (\x y -> y) (\u v w -> w) (\a b -> zeroSign) (\a -> posSign) negSign
+
+#isPositive  = \n -> (sign n) true false false
+#isNegative  = \n -> (sign n) false true false
+
+# Rather than using sign directly, I've made these based off of sign.
+# This also means less reduction steps.
+
+isPositive  = \n -> n (\x -> x)   (\a b -> b) (\z x y -> x) (\x y -> y)
+isNegative  = \n -> n (\x y -> y) (\a b -> b) (\z x y -> y) (\x y -> x)
+
+# I can't make this one any better.
+isZero      = \n -> (sign n) false false true
+
+# Note: just using "\m n x -> m (n x)" wouldn't be commutative:
+#
+#   > (\m n x -> m (n x)) minusTwo two
+#   = (λx. x)
+#   > (\m n x -> m (n x)) two minusTwo
+#   = (λx u. u (λu1. u1 (x (λu2. u2) (λu3. u3))))
+#
+# So when there first argument is positive and the second is negative we must
+# swap them.
+#
+#add = \m n x -> (and (isPositive m) (isNegative n)) (n (m x)) (m (n x))
+#
+# ... but it's not wrong to swap the arguments every time the second one is
+# negative. This means less reductions.
+#
+add = \m n x -> (isNegative n) (n (m x)) (m (n x))
+
+# invert the signal of a number.
+minus = \n -> applyNTimes n zero pred succ
+
+# if m > 0, compute f (f ... (f n) ...) with m f's.
+# if m < 0, compute g (g ... (g n) ...) with abs(m) g's.
+#
+# In other words, this converts a number in our encoding to Church encoding,
+# using the sign to choose between two functions that may be applied.
+#
+applyNTimes = \m n f g ->   &
+    Y (\r !a b -> (sign a)  &
+        (r (pred a) (f b))  &
+        (r (succ a) (g b))  &
+        b                   &
+    ) m n
+
+sub = \m n -> add m (minus n)
+
+# Three-way comparison.
+#
+#cmp = \m n -> sign (sub m n)
+#
+greaterThan = posSign
+lesserThan = negSign
+equalTo = zeroSign
+
+cmp = \m n ->                                  &
+   (Y (\recur !a !b -> (sign a)                &
+           ((isPositive b)                     &
+                   (recur (pred a) (pred b))   &
+                   greaterThan)                &
+           ((isNegative b)                     &
+                   (recur (succ a) (succ b))   &
+                   lesserThan)                 &
+           ((sign b)                           &
+                   lesserThan                  &
+                   greaterThan                 &
+                   equalTo))                   &
+       m n)
+
+# Two-way comparisons, implemented in terms of the three-way one.
+#
+lt = \m n -> (cmp m n) false true false
+gt = \m n -> (cmp m n) true false false
+eq = \m n -> (cmp m n) false false true
+leq = \m n -> (cmp m n) false true true
+geq = \m n -> (cmp m n) true false true
+
+mul = \m n -> applyNTimes m zero (add n) (add (minus n))
+square = \x -> mul x x
+
+# Integer division.
+# divPos is a function and divide two strictly positive numbers.
+# This function gives one when dividing by zero, arbitrarily.
+#
+div = \m n -> (sign m)                  &
+    ((sign n)                           &
+        (divPos m n)                    &
+        (minus (divPos m (minus n)))    &
+        one)                            &
+    ((sign n)                           &
+        (minus (divPos (minus m) n))    &
+        (divPos (minus m) (minus n))    &
+        one)                            &
+    zero
+
+# This function may loop indefinitely if given any non-positive arguments.
+#
+divPos = \!m !n -> actualDivPos m n zero
+
+actualDivPos = \a b quot ->                     &
+    Y (\recur !m !n !q ->                       &
+        (\!diff -> (isNegative diff)            &
+            q                                   &
+            (recur diff n (succ q)))            &
+        ((\!minusN -> add m minusN) (minus n))  &
+    ) a b quot
+
+# Another implementation of division; takes way too many reductions.
+
+# compute the list of all powers of ten smaller than x.
+#powersOfTenNotGreater = \num ->                &
+#   Y (\recur !x !pow !list ->                  &
+#       (gt pow x)                              &
+#       list                                    &
+#       (recur x (mul pow ten) (pair pow list)) &
+#   ) num one nil
+
+# subtract subFrom from num as many times as possible while keeping the result
+# positive, incrementing acc by addBy each time, returning the pair (num, acc)
+# after this.
+# This function assumes num > 0 on the first call.
+#
+#subAcc = \num acc addBy subFrom ->             &
+#   Y (\recur !x !a ->                          &
+#       (lt x subFrom)                          &
+#       (pair a x)                              &
+#       (recur (sub x subFrom) (add a addBy))   &
+#   ) num acc
+
+#divPos = \a b ->                                                           &
+#   Y (\recur !l !p ->                                                      &
+#       l (\h t d ->  recur t (subAcc (second p) (first p) h (mul b h)))    &
+#       (first p)                                                           &
+#   ) (powersOfTenNotGreater a) (pair zero a)
