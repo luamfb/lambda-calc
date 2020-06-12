@@ -58,7 +58,11 @@ pub const COMMAND_CLASSIFIER : &[CommandClassifier] = &[
 pub fn print_usage() {
     println!(
 "An untyped lambda calculus interpreter.
-See <https://docs.rs/lambda_calc> for the syntax understood by the parser.
+For the syntax understood by the parser, see the documentation for
+\t- Parser::parse
+\t- TokenIter
+At <https://docs.rs/lambda_calc>. For examples of input files, see
+<https://github.com/luamfb/lambda-calc/tree/main/inputs>.
 
 Usage:
 <program_name> -h | --help
