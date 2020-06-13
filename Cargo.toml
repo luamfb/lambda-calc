@@ -1,6 +1,6 @@
 [package]
 name = "lambda_calc"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Luana C M de F Barbosa <luamfb@riseup.net>"]
 edition = "2018"
 description = "A command-line untyped lambda calculus interpreter."
