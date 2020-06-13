@@ -215,6 +215,16 @@ impl Parser {
         Ok(())
     }
 
+    /// Get an iterator for symbol names starting with prefix.
+    /// May be used to implement TAB completion.
+    pub fn get_symbol_names_with_prefix(&self, prefix: &str) -> Vec<&str> {
+        self.symbol_table
+            .keys()
+            .filter(|s| s.starts_with(prefix))
+            .map(|s| &s[..]) // convert &String to &str (though there might be a better way...)
+            .collect()
+    }
+
     /// Return an immutable reference to an expression if its name can be found
     /// in the symbol table.
     pub fn get_symbol(&self, name: &str) -> Option<&Ast> {

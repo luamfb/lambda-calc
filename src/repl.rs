@@ -1,6 +1,8 @@
 use std::{
     env,
     borrow::Cow,
+    cell::RefCell,
+    rc::Rc,
 };
 use rustyline::{
     At,
@@ -26,8 +28,9 @@ use crate::{
 
 #[derive(Helper)]
 struct RustylineHelper {
-    completer: FilenameCompleter, // for :load
+    filename_completer: FilenameCompleter, // for :load
     highlighter: MatchingBracketHighlighter,
+    parser: Rc<RefCell<Parser>>,
 }
 
 impl Hinter for RustylineHelper {
@@ -39,13 +42,34 @@ impl Hinter for RustylineHelper {
 impl Completer for RustylineHelper {
     type Candidate = Pair;
 
-    fn complete(&self, line: &str, pos: usize, context: &Context)
+    fn complete(&self, line: &str, cursor_pos: usize, context: &Context)
         -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
     {
-        self.completer.complete(line, pos, context)
+        let null_completion = (0, Vec::with_capacity(0));
+        if cursor_pos == 0 {
+            return Ok(null_completion);
+        }
+        let completion = match line.chars().next() {
+            None => return Ok(null_completion),
+            Some(':') => {
+                // TODO: use this only with :load
+                self.filename_completer.complete(line, cursor_pos, context)
+            },
+            Some(_) => {
+                let word_begin = get_start_word_under_cursor(&line, cursor_pos);
+                let completion: Vec<Pair> = self.parser
+                    .borrow()
+                    .get_symbol_names_with_prefix(&line[word_begin..cursor_pos])
+                    .iter()
+                    .map(|s| Pair { display: s.to_string(), replacement: s.to_string(), })
+                    .collect();
+                Ok((word_begin, completion))
+            },
+        };
+        completion
     }
     fn update(&self, line: &mut LineBuffer, start: usize, elected: &str) {
-        self.completer.update(line, start, elected)
+        self.filename_completer.update(line, start, elected)
     }
 }
 
@@ -78,12 +102,13 @@ impl Highlighter for RustylineHelper {
     }
 }
 
-fn make_rustyline_editor(histfile: &str) -> Editor<RustylineHelper> {
+fn make_rustyline_editor(histfile: &str, parser: Rc<RefCell<Parser>>) -> Editor<RustylineHelper> {
     let mut rl = Editor::<RustylineHelper>::new();
 
     let rustyline_helper = RustylineHelper {
-        completer: FilenameCompleter::new(),
+        filename_completer: FilenameCompleter::new(),
         highlighter: MatchingBracketHighlighter::new(),
+        parser,
     };
     rl.set_helper(Some(rustyline_helper));
 
@@ -117,9 +142,12 @@ fn get_histfile_path() -> String {
     }
 }
 
-pub fn read_eval_print_loop(mut parser: Parser) {
+pub fn read_eval_print_loop(parser: Parser) {
+
+    let parser = Rc::new(RefCell::new(parser));
+
     let histfile = get_histfile_path();
-    let mut rl = make_rustyline_editor(&histfile);
+    let mut rl = make_rustyline_editor(&histfile, Rc::clone(&parser));
 
     loop {
         match rl.readline("> ") {
@@ -135,9 +163,10 @@ pub fn read_eval_print_loop(mut parser: Parser) {
                     };
                 }
                 rl.add_history_entry(line.as_str());
-                match parser.parse(&line, None) {
+                let mut parser_mut_ref = parser.borrow_mut();
+                match parser_mut_ref.parse(&line, None) {
                     Ok(ast) => if let Some(expr) = ast {
-                        expr.beta_reduce_print(&mut parser);
+                        expr.beta_reduce_print(&parser_mut_ref);
                     },
                     Err(e) => eprintln!("syntax error: {}", e),
                 };
@@ -157,4 +186,20 @@ pub fn read_eval_print_loop(mut parser: Parser) {
     if let Err(_) = rl.save_history(&histfile) {
         eprintln!("failed to save history file");
     };
+}
+
+// find the beginning of the word in line which is currently under the cursor,
+// whose position is cursor_pos.
+//
+fn get_start_word_under_cursor(line: &str, cursor_pos: usize) -> usize {
+    let mut chars = line[..cursor_pos].chars();
+    let mut res = cursor_pos;
+    while let Some(c) = chars.next_back() {
+        if c == ' ' || c == '(' || c == ')' {
+            break
+        }
+        res -= c.len_utf8();
+    };
+    // if iter == None, res == 0.
+    res
 }
