@@ -24,6 +24,7 @@ use rustyline_derive::Helper;
 use crate::{
     parser::Parser,
     lexer,
+    cmd::{Command, CommandClassifier, COMMAND_CLASSIFIER},
 };
 
 #[derive(Helper)]
@@ -50,10 +51,39 @@ impl Completer for RustylineHelper {
             return Ok(null_completion);
         }
         let completion = match line.chars().next() {
-            None => return Ok(null_completion),
+            None => Ok(null_completion),
             Some(':') => {
-                // TODO: use this only with :load
-                self.filename_completer.complete(line, cursor_pos, context)
+                let compl_str = &line[1..cursor_pos];
+                let completion = match compl_str.chars().position(|c| c == ' ') {
+                    None => {
+                        // no space: complete the command's name.
+                        match get_command_starts_with(compl_str) {
+                            None => Ok(null_completion),
+                            Some(cmd) => {
+                                let compl_pair = Pair {
+                                    display: cmd.long_name.to_string(),
+                                    replacement: cmd.long_name.to_string(),
+                                };
+                                Ok((1, vec![compl_pair]))
+                            },
+                        }
+                    },
+                    Some(pos) => {
+                        // with space: complete the argument's name.
+                        match get_command(&compl_str[..pos]) {
+                            None => Ok(null_completion),
+                            Some(class) => {
+                                if let Command::Load = class.cmd {
+                                  self.filename_completer.complete(line, cursor_pos, context)
+                                } else {
+                                    // we only handle the load command's completion for now.
+                                    Ok(null_completion)
+                                }
+                            },
+                        }
+                    },
+                };
+                completion
             },
             Some(_) => {
                 let word_begin = get_start_word_under_cursor(&line, cursor_pos);
@@ -202,4 +232,23 @@ fn get_start_word_under_cursor(line: &str, cursor_pos: usize) -> usize {
     };
     // if iter == None, res == 0.
     res
+}
+
+// get the command entry in COMMAND_CLASSIFIER whose long name starts with prefix.
+fn get_command_starts_with(prefix: &str) -> Option<&CommandClassifier> {
+    for class in COMMAND_CLASSIFIER {
+        if class.long_name.starts_with(prefix) {
+            return Some(&class);
+        }
+    }
+    None
+}
+
+fn get_command(name: &str) -> Option<&CommandClassifier> {
+    for class in COMMAND_CLASSIFIER {
+        if name == class.short_name || name == class.long_name {
+            return Some(&class);
+        }
+    }
+    None
 }
