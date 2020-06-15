@@ -7,6 +7,7 @@ description = "A command-line untyped lambda calculus interpreter."
 readme = "README.md"
 documentation = "https://docs.rs/lambda_calc"
 license = "MIT"
+keywords = ["lambda", "calculus", "lambda-calculus", "cli", "repl", "parser"]
 
 [dependencies]
 rustyline = "5.0.0"
